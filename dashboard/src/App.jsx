@@ -4,13 +4,14 @@ import { io } from 'socket.io-client';
 import { 
   Monitor, Activity, Search, Settings, Bell, 
   Layout, Keyboard, Clipboard, FolderOpen, Cpu,
-  Globe, ChevronRight, Wifi, WifiOff
+  Globe, ChevronRight, Wifi, WifiOff, PlayCircle
 } from 'lucide-react';
 
 import ComputerList from './components/ComputerList';
 import LiveFeed from './components/LiveFeed';
 import Dashboard from './components/Dashboard';
 import SearchPanel from './components/SearchPanel';
+import KeystrokeReplay from './components/KeystrokeReplay';
 
 // Socket connection
 const socket = io('http://localhost:5000/live', {
@@ -23,6 +24,7 @@ function Sidebar({ computers, selectedComputer, onSelectComputer }) {
   const navItems = [
     { path: '/', icon: Layout, label: 'Dashboard' },
     { path: '/live', icon: Activity, label: 'Live Feed' },
+    { path: '/replay', icon: PlayCircle, label: 'Keystroke Replay' },
     { path: '/search', icon: Search, label: 'Search' },
     { path: '/settings', icon: Settings, label: 'Settings' },
   ];
@@ -179,6 +181,9 @@ function App() {
                 events={events}
                 selectedComputer={selectedComputer}
               />
+            } />
+            <Route path="/replay" element={
+              <KeystrokeReplay />
             } />
             <Route path="/search" element={
               <SearchPanel />

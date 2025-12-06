@@ -64,15 +64,26 @@ class KeystrokeLogger:
                         # Remove last character if exists
                         if result:
                             result.pop()
+                    elif special == '[CTRL+BACKSPACE]':
+                        # Delete previous word (back to last space or start)
+                        # First remove trailing spaces
+                        while result and result[-1] == ' ':
+                            result.pop()
+                        # Then remove until we hit a space or start
+                        while result and result[-1] != ' ':
+                            result.pop()
                     elif special == '[DELETE]':
                         # DELETE typically removes char at cursor - for simplicity, ignore
+                        pass
+                    elif special == '[CTRL+DELETE]':
+                        # Delete word forward - ignore in reconstruction
                         pass
                     elif special == '[ENTER]':
                         result.append('\n')
                     elif special == '[TAB]':
                         result.append('\t')
                     elif special.startswith('[CTRL+') or special.startswith('[ALT+'):
-                        # Shortcuts don't produce text, skip them
+                        # Other shortcuts don't produce text, skip them
                         pass
                     # Other special keys (arrows, etc.) don't add text
                     
@@ -138,8 +149,13 @@ class KeystrokeLogger:
                 char = f'[{str(key)}]'
             
             # Add modifier prefixes for shortcuts
-            if self.ctrl_pressed and len(char) == 1:
-                char = f'[CTRL+{char.upper()}]'
+            if self.ctrl_pressed:
+                if len(char) == 1:
+                    char = f'[CTRL+{char.upper()}]'
+                elif char == '[BACKSPACE]':
+                    char = '[CTRL+BACKSPACE]'  # Delete whole word
+                elif char == '[DELETE]':
+                    char = '[CTRL+DELETE]'  # Delete word forward
             elif self.alt_pressed and len(char) == 1:
                 char = f'[ALT+{char.upper()}]'
             
