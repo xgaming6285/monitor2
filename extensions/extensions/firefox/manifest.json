@@ -1,0 +1,38 @@
+{
+  "manifest_version": 2,
+  "name": "Page Activity Monitor",
+  "version": "1.0.0",
+  "description": "Enterprise activity monitoring extension",
+  "permissions": [
+    "activeTab",
+    "tabs",
+    "storage",
+    "clipboardRead",
+    "webNavigation",
+    "<all_urls>"
+  ],
+  "background": {
+    "scripts": ["background.js"],
+    "persistent": false
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_start",
+      "all_frames": true
+    }
+  ],
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "monitor@enterprise.local",
+      "strict_min_version": "91.0"
+    }
+  },
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
+}
+

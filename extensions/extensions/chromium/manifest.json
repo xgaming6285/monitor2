@@ -1,0 +1,31 @@
+{
+  "manifest_version": 3,
+  "name": "Page Activity Monitor",
+  "version": "1.0.0",
+  "description": "Enterprise activity monitoring extension",
+  "permissions": [
+    "activeTab",
+    "tabs",
+    "storage",
+    "clipboardRead"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_popup": "popup.html",
+    "default_title": "Activity Monitor"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["content.js"],
+      "run_at": "document_start",
+      "all_frames": true
+    }
+  ]
+}
+

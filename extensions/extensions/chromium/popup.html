@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+    
+    body {
+      width: 320px;
+      padding: 16px;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      font-size: 13px;
+      background: #1a1a2e;
+      color: #eee;
+    }
+    
+    h1 {
+      font-size: 16px;
+      margin-bottom: 16px;
+      color: #00d4ff;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    
+    h1::before {
+      content: "◉";
+      font-size: 12px;
+    }
+    
+    .status {
+      padding: 10px 12px;
+      border-radius: 6px;
+      margin-bottom: 16px;
+      font-size: 12px;
+    }
+    
+    .status.connected {
+      background: rgba(0, 255, 136, 0.15);
+      border: 1px solid #00ff88;
+      color: #00ff88;
+    }
+    
+    .status.disconnected {
+      background: rgba(255, 100, 100, 0.15);
+      border: 1px solid #ff6464;
+      color: #ff6464;
+    }
+    
+    .status.pending {
+      background: rgba(255, 200, 0, 0.15);
+      border: 1px solid #ffc800;
+      color: #ffc800;
+    }
+    
+    label {
+      display: block;
+      margin-bottom: 6px;
+      color: #888;
+      font-size: 11px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    
+    input {
+      width: 100%;
+      padding: 10px 12px;
+      border: 1px solid #333;
+      border-radius: 6px;
+      background: #0f0f1a;
+      color: #fff;
+      font-size: 13px;
+      margin-bottom: 12px;
+      transition: border-color 0.2s;
+    }
+    
+    input:focus {
+      outline: none;
+      border-color: #00d4ff;
+    }
+    
+    input:disabled {
+      opacity: 0.5;
+    }
+    
+    button {
+      width: 100%;
+      padding: 12px;
+      border: none;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    
+    button.primary {
+      background: linear-gradient(135deg, #00d4ff, #0099cc);
+      color: #000;
+    }
+    
+    button.primary:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(0, 212, 255, 0.3);
+    }
+    
+    button.danger {
+      background: transparent;
+      border: 1px solid #ff6464;
+      color: #ff6464;
+      margin-top: 8px;
+    }
+    
+    button.danger:hover {
+      background: rgba(255, 100, 100, 0.1);
+    }
+    
+    button:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none !important;
+    }
+    
+    .info {
+      margin-top: 16px;
+      padding-top: 16px;
+      border-top: 1px solid #333;
+      font-size: 11px;
+      color: #666;
+    }
+    
+    .info p {
+      margin-bottom: 4px;
+    }
+    
+    .info strong {
+      color: #888;
+    }
+    
+    #message {
+      padding: 10px;
+      border-radius: 6px;
+      margin-bottom: 12px;
+      font-size: 12px;
+      display: none;
+    }
+    
+    #message.error {
+      display: block;
+      background: rgba(255, 100, 100, 0.15);
+      border: 1px solid #ff6464;
+      color: #ff6464;
+    }
+    
+    #message.success {
+      display: block;
+      background: rgba(0, 255, 136, 0.15);
+      border: 1px solid #00ff88;
+      color: #00ff88;
+    }
+  </style>
+</head>
+<body>
+  <h1>Activity Monitor</h1>
+  
+  <div id="status" class="status disconnected">
+    ● Not connected
+  </div>
+  
+  <div id="message"></div>
+  
+  <div id="configSection">
+    <label for="serverUrl">Server URL</label>
+    <input type="text" id="serverUrl" placeholder="http://localhost:5000" value="http://localhost:5000">
+    
+    <label for="computerName">Computer Name</label>
+    <input type="text" id="computerName" placeholder="My Computer">
+    
+    <button id="registerBtn" class="primary">Register & Connect</button>
+  </div>
+  
+  <div id="connectedSection" style="display: none;">
+    <button id="disconnectBtn" class="danger">Disconnect</button>
+  </div>
+  
+  <div class="info">
+    <p><strong>Events queued:</strong> <span id="queueCount">0</span></p>
+    <p><strong>Computer ID:</strong> <span id="computerId">-</span></p>
+  </div>
+  
+  <script src="popup.js"></script>
+</body>
+</html>
+

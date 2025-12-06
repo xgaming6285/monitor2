@@ -202,6 +202,13 @@ function SearchPanel() {
                   </div>
                   
                   <div className="text-sm text-gray-300 font-mono bg-[#0d1117] rounded p-3 overflow-x-auto">
+                    {/* For keystrokes, show reconstructed text prominently */}
+                    {event.event_type === 'keystroke' && event.data?.text && (
+                      <div className="mb-3 pb-3 border-b border-[#30363d]">
+                        <span className="text-gray-500 text-xs block mb-1">Final text:</span>
+                        <span className="text-cyan-300 text-base">{event.data.text}</span>
+                      </div>
+                    )}
                     <pre className="whitespace-pre-wrap">
                       {JSON.stringify(event.data, null, 2)}
                     </pre>

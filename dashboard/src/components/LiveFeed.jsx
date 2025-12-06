@@ -29,11 +29,16 @@ function EventItem({ event }) {
     
     switch (event.event_type) {
       case 'keystroke':
+        // Show reconstructed text if available (final typed text), otherwise raw keys
+        const displayText = data.text || data.keys;
         return (
           <span className="font-mono text-sm">
-            Typed: <span className="text-orange-300">"{data.keys?.substring(0, 100)}"</span>
+            Typed: <span className="text-orange-300">"{displayText?.substring(0, 100)}"</span>
             {data.target_process && (
               <span className="text-gray-500"> in {data.target_process}</span>
+            )}
+            {data.text && data.keys !== data.text && (
+              <span className="text-gray-600 text-xs ml-2">(edited)</span>
             )}
           </span>
         );
