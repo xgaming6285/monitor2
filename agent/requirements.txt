@@ -1,0 +1,25 @@
+# System monitoring
+psutil==5.9.6
+pywin32==306
+
+# Keyboard/mouse monitoring
+pynput==1.7.6
+
+# File system monitoring
+watchdog==3.0.0
+
+# HTTP client
+requests==2.31.0
+
+# WebSocket client
+websocket-client==1.6.4
+
+# Encryption
+cryptography==41.0.7
+
+# Configuration
+python-dotenv==1.0.0
+
+# Build to executable
+pyinstaller==6.3.0
+
