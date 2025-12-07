@@ -1,0 +1,1182 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Activity Replay - With Scrolling</title>
+    <style>
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          sans-serif;
+        background: #0d1117;
+        color: #e6edf3;
+        height: 100vh;
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+      }
+
+      .header {
+        padding: 12px 20px;
+        background: #161b22;
+        border-bottom: 1px solid #30363d;
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        flex-wrap: wrap;
+      }
+
+      .logo {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .logo-icon {
+        width: 32px;
+        height: 32px;
+        background: linear-gradient(135deg, #22c55e, #16a34a);
+        border-radius: 8px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 16px;
+      }
+      .logo-text {
+        font-weight: 700;
+        font-size: 16px;
+        background: linear-gradient(135deg, #22c55e, #4ade80);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+      }
+
+      .badge {
+        background: rgba(34, 197, 94, 0.15);
+        color: #22c55e;
+        padding: 4px 10px;
+        border-radius: 6px;
+        font-size: 11px;
+        font-weight: 600;
+      }
+
+      .divider {
+        width: 1px;
+        height: 24px;
+        background: #30363d;
+      }
+
+      .btn {
+        padding: 8px 14px;
+        border: none;
+        border-radius: 6px;
+        font-size: 13px;
+        font-weight: 600;
+        cursor: pointer;
+        transition: all 0.2s;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .btn-primary {
+        background: linear-gradient(135deg, #22c55e, #16a34a);
+        color: #fff;
+      }
+      .btn-primary:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 4px 12px rgba(34, 197, 94, 0.3);
+      }
+
+      .file-info {
+        font-size: 12px;
+        color: #8b949e;
+      }
+
+      .status-indicator {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        font-size: 12px;
+        padding: 6px 12px;
+        border-radius: 6px;
+        background: #21262d;
+      }
+      .status-dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #8b949e;
+      }
+      .status-dot.playing {
+        background: #22c55e;
+        animation: pulse 1s infinite;
+      }
+      @keyframes pulse {
+        0%,
+        100% {
+          opacity: 1;
+        }
+        50% {
+          opacity: 0.5;
+        }
+      }
+
+      .main {
+        flex: 1;
+        display: flex;
+        overflow: hidden;
+        min-height: 0;
+      }
+
+      .browser-area {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+        padding: 16px;
+        gap: 12px;
+      }
+
+      .browser-frame {
+        flex: 1;
+        background: #161b22;
+        border-radius: 12px;
+        border: 1px solid #30363d;
+        overflow: hidden;
+        display: flex;
+        flex-direction: column;
+      }
+
+      .browser-titlebar {
+        display: flex;
+        align-items: center;
+        padding: 8px 12px;
+        background: #21262d;
+        border-bottom: 1px solid #30363d;
+        gap: 10px;
+      }
+      .browser-buttons {
+        display: flex;
+        gap: 6px;
+      }
+      .browser-button {
+        width: 12px;
+        height: 12px;
+        border-radius: 50%;
+      }
+      .browser-button.red {
+        background: #ff5f56;
+      }
+      .browser-button.yellow {
+        background: #ffbd2e;
+      }
+      .browser-button.green {
+        background: #27c93f;
+      }
+
+      .browser-url-bar {
+        flex: 1;
+        background: #0d1117;
+        border-radius: 6px;
+        padding: 6px 12px;
+        font-size: 13px;
+        color: #8b949e;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        overflow: hidden;
+      }
+      .browser-url-bar .icon {
+        color: #22c55e;
+      }
+      .browser-url-bar .url-text {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        flex: 1;
+      }
+
+      .browser-content {
+        flex: 1;
+        position: relative;
+        background: #fff;
+        overflow: hidden;
+      }
+      .browser-iframe {
+        width: 100%;
+        height: 100%;
+        border: none;
+        background: #fff;
+      }
+
+      .iframe-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        pointer-events: none;
+        z-index: 10;
+      }
+
+      .click-indicator {
+        position: absolute;
+        width: 40px;
+        height: 40px;
+        border: 3px solid #f97316;
+        border-radius: 50%;
+        background: rgba(249, 115, 22, 0.2);
+        transform: translate(-50%, -50%) scale(0);
+        pointer-events: none;
+        z-index: 100;
+      }
+      .click-indicator.animate {
+        animation: clickRipple 0.6s ease-out forwards;
+      }
+      @keyframes clickRipple {
+        0% {
+          transform: translate(-50%, -50%) scale(0);
+          opacity: 1;
+        }
+        50% {
+          transform: translate(-50%, -50%) scale(1);
+          opacity: 0.8;
+        }
+        100% {
+          transform: translate(-50%, -50%) scale(1.5);
+          opacity: 0;
+        }
+      }
+
+      .action-toast {
+        position: absolute;
+        bottom: 20px;
+        left: 50%;
+        transform: translateX(-50%) translateY(100px);
+        padding: 12px 24px;
+        background: rgba(0, 0, 0, 0.9);
+        border-radius: 8px;
+        font-size: 14px;
+        font-weight: 500;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        transition: transform 0.3s ease;
+        z-index: 100;
+        border: 1px solid #30363d;
+      }
+      .action-toast.visible {
+        transform: translateX(-50%) translateY(0);
+      }
+      .action-toast.click {
+        border-color: #f97316;
+        color: #f97316;
+      }
+      .action-toast.scroll {
+        border-color: #22c55e;
+        color: #22c55e;
+      }
+      .action-toast.select {
+        border-color: #a855f7;
+        color: #a855f7;
+      }
+      .action-toast.copy {
+        border-color: #eab308;
+        color: #eab308;
+      }
+      .action-toast.input {
+        border-color: #ec4899;
+        color: #ec4899;
+      }
+      .action-toast.navigate {
+        border-color: #58a6ff;
+        color: #58a6ff;
+      }
+
+      .loading-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: #0d1117;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        z-index: 50;
+        transition: opacity 0.3s;
+      }
+      .loading-overlay.hidden {
+        opacity: 0;
+        pointer-events: none;
+      }
+      .loading-spinner {
+        width: 40px;
+        height: 40px;
+        border: 3px solid #30363d;
+        border-top-color: #22c55e;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+        margin-bottom: 16px;
+      }
+      @keyframes spin {
+        to {
+          transform: rotate(360deg);
+        }
+      }
+      .loading-text {
+        color: #8b949e;
+        font-size: 14px;
+      }
+
+      .scroll-indicator {
+        position: absolute;
+        right: 16px;
+        top: 50%;
+        transform: translateY(-50%);
+        background: rgba(34, 197, 94, 0.9);
+        color: #fff;
+        padding: 8px 14px;
+        border-radius: 8px;
+        font-size: 16px;
+        font-weight: 700;
+        opacity: 0;
+        transition: opacity 0.3s;
+        z-index: 100;
+      }
+      .scroll-indicator.visible {
+        opacity: 1;
+      }
+
+      /* Controls */
+      .controls {
+        background: #161b22;
+        border-radius: 10px;
+        border: 1px solid #30363d;
+        padding: 12px 16px;
+      }
+      .timeline-container {
+        margin-bottom: 12px;
+      }
+      .timeline {
+        height: 6px;
+        background: #21262d;
+        border-radius: 3px;
+        cursor: pointer;
+        position: relative;
+      }
+      .timeline-progress {
+        height: 100%;
+        background: linear-gradient(90deg, #22c55e, #4ade80);
+        border-radius: 3px;
+        transition: width 0.1s linear;
+        position: relative;
+      }
+      .timeline-thumb {
+        position: absolute;
+        right: -6px;
+        top: 50%;
+        transform: translateY(-50%);
+        width: 14px;
+        height: 14px;
+        background: #fff;
+        border-radius: 50%;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+      }
+      .timeline-events {
+        position: absolute;
+        top: 10px;
+        left: 0;
+        right: 0;
+        height: 4px;
+      }
+      .timeline-event-marker {
+        position: absolute;
+        width: 4px;
+        height: 4px;
+        background: #58a6ff;
+        border-radius: 50%;
+        transform: translateX(-50%);
+        opacity: 0.6;
+      }
+      .timeline-event-marker.page {
+        background: #58a6ff;
+      }
+      .timeline-event-marker.click {
+        background: #f97316;
+      }
+      .timeline-event-marker.scroll {
+        background: #22c55e;
+      }
+
+      .controls-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+      }
+      .time-display {
+        font-family: monospace;
+        font-size: 12px;
+        color: #8b949e;
+        min-width: 100px;
+      }
+
+      .playback-buttons {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .playback-btn {
+        width: 36px;
+        height: 36px;
+        border: none;
+        border-radius: 6px;
+        background: #21262d;
+        color: #e6edf3;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s;
+        font-size: 14px;
+      }
+      .playback-btn:hover {
+        background: #30363d;
+      }
+      .playback-btn.play {
+        width: 48px;
+        height: 48px;
+        border-radius: 50%;
+        background: linear-gradient(135deg, #22c55e, #16a34a);
+        color: #fff;
+        font-size: 18px;
+      }
+      .playback-btn.play:hover {
+        transform: scale(1.05);
+      }
+
+      .speed-select {
+        background: #21262d;
+        border: 1px solid #30363d;
+        border-radius: 6px;
+        padding: 6px 10px;
+        color: #e6edf3;
+        font-size: 12px;
+        cursor: pointer;
+      }
+
+      /* Sidebar */
+      .sidebar {
+        width: 320px;
+        background: #161b22;
+        border-left: 1px solid #30363d;
+        display: flex;
+        flex-direction: column;
+      }
+      .sidebar-header {
+        padding: 12px 16px;
+        border-bottom: 1px solid #30363d;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      .sidebar-title {
+        font-weight: 600;
+        font-size: 14px;
+      }
+      .sidebar-count {
+        font-size: 11px;
+        color: #8b949e;
+        background: #21262d;
+        padding: 2px 8px;
+        border-radius: 10px;
+      }
+      .events-list {
+        flex: 1;
+        overflow-y: auto;
+        padding: 8px;
+      }
+      .event-item {
+        padding: 10px 12px;
+        border-radius: 6px;
+        margin-bottom: 4px;
+        cursor: pointer;
+        transition: all 0.2s;
+        border: 1px solid transparent;
+      }
+      .event-item:hover {
+        background: #21262d;
+      }
+      .event-item.active {
+        background: rgba(34, 197, 94, 0.1);
+        border-color: rgba(34, 197, 94, 0.3);
+      }
+      .event-item.page {
+        border-left: 3px solid #58a6ff;
+      }
+      .event-header {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin-bottom: 4px;
+      }
+      .event-icon {
+        font-size: 14px;
+      }
+      .event-type {
+        font-size: 11px;
+        font-weight: 600;
+        text-transform: uppercase;
+        color: #8b949e;
+      }
+      .event-time {
+        font-size: 10px;
+        color: #6e7681;
+        margin-left: auto;
+        font-family: monospace;
+      }
+      .event-detail {
+        font-size: 12px;
+        color: #e6edf3;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .empty-state {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        color: #8b949e;
+        padding: 40px;
+      }
+      .empty-icon {
+        font-size: 64px;
+        margin-bottom: 16px;
+        opacity: 0.3;
+      }
+      .empty-text {
+        font-size: 18px;
+        margin-bottom: 8px;
+        color: #e6edf3;
+      }
+      .empty-subtext {
+        font-size: 13px;
+        text-align: center;
+        line-height: 1.5;
+      }
+
+      #fileInput {
+        display: none;
+      }
+      @media (max-width: 900px) {
+        .sidebar {
+          display: none;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="header">
+      <div class="logo">
+        <div class="logo-icon">🔄</div>
+        <span class="logo-text">Activity Replay</span>
+      </div>
+      <span class="badge">✓ SCROLLING ENABLED</span>
+      <div class="divider"></div>
+      <input type="file" id="fileInput" accept=".json" />
+      <button
+        class="btn btn-primary"
+        onclick="document.getElementById('fileInput').click()"
+      >
+        📂 Load JSON
+      </button>
+      <span class="file-info" id="fileInfo">No file loaded</span>
+      <div style="flex: 1"></div>
+      <div class="status-indicator">
+        <div class="status-dot" id="statusDot"></div>
+        <span id="statusText">Ready</span>
+      </div>
+    </div>
+
+    <div class="main" id="mainContent">
+      <div class="empty-state" id="emptyState">
+        <div class="empty-icon">🌐</div>
+        <div class="empty-text">Load an activity log to replay</div>
+        <div class="empty-subtext">
+          Click "Load JSON" and select your activity log file.<br />
+          Pages will load through the proxy with
+          <strong>full scrolling support</strong>!
+        </div>
+      </div>
+    </div>
+
+    <template id="playerTemplate">
+      <div class="browser-area">
+        <div class="browser-frame">
+          <div class="browser-titlebar">
+            <div class="browser-buttons">
+              <div class="browser-button red"></div>
+              <div class="browser-button yellow"></div>
+              <div class="browser-button green"></div>
+            </div>
+            <div class="browser-url-bar">
+              <span class="icon">🔒</span>
+              <span class="url-text" id="currentUrl">about:blank</span>
+            </div>
+          </div>
+          <div class="browser-content">
+            <iframe class="browser-iframe" id="browserIframe"></iframe>
+            <div class="iframe-overlay" id="iframeOverlay">
+              <div class="click-indicator" id="clickIndicator"></div>
+            </div>
+            <div class="scroll-indicator" id="scrollIndicator">0%</div>
+            <div class="action-toast" id="actionToast"></div>
+            <div class="loading-overlay" id="loadingOverlay">
+              <div class="loading-spinner"></div>
+              <div class="loading-text">Loading page through proxy...</div>
+            </div>
+          </div>
+        </div>
+        <div class="controls">
+          <div class="timeline-container">
+            <div class="timeline" id="timeline">
+              <div class="timeline-progress" id="timelineProgress">
+                <div class="timeline-thumb"></div>
+              </div>
+              <div class="timeline-events" id="timelineEvents"></div>
+            </div>
+          </div>
+          <div class="controls-row">
+            <div class="time-display">
+              <span id="currentTime">0:00</span> /
+              <span id="totalTime">0:00</span>
+            </div>
+            <div class="playback-buttons">
+              <button class="playback-btn" onclick="skipTo(0)" title="Restart">
+                ⏮
+              </button>
+              <button
+                class="playback-btn"
+                onclick="prevEvent()"
+                title="Previous"
+              >
+                ⏪
+              </button>
+              <button
+                class="playback-btn play"
+                id="playBtn"
+                onclick="togglePlay()"
+              >
+                ▶
+              </button>
+              <button class="playback-btn" onclick="nextEvent()" title="Next">
+                ⏩
+              </button>
+              <button class="playback-btn" onclick="skipToEnd()" title="End">
+                ⏭
+              </button>
+            </div>
+            <select
+              class="speed-select"
+              id="speedSelect"
+              onchange="changeSpeed()"
+            >
+              <option value="0.5">0.5x</option>
+              <option value="1" selected>1x</option>
+              <option value="2">2x</option>
+              <option value="4">4x</option>
+              <option value="8">8x</option>
+            </select>
+          </div>
+        </div>
+      </div>
+      <div class="sidebar">
+        <div class="sidebar-header">
+          <span class="sidebar-title">Timeline</span>
+          <span class="sidebar-count" id="eventCount">0</span>
+        </div>
+        <div class="events-list" id="eventsList"></div>
+      </div>
+    </template>
+
+    <script>
+      // State
+      let events = [];
+      let currentIndex = -1;
+      let isPlaying = false;
+      let playbackSpeed = 1;
+      let playInterval = null;
+      let startTime = 0;
+      let endTime = 0;
+      let currentPlayTime = 0;
+      let lastLoadedUrl = "";
+      let iframeScrollHeight = 1000;
+      let iframeViewportHeight = 500;
+      let originalViewportWidth = 0;
+      let originalViewportHeight = 0;
+
+      const PROXY_URL = "/proxy?url=";
+
+      // Detect original viewport size from click coordinates
+      function detectOriginalViewport(events) {
+        let maxX = 0;
+        let maxY = 0;
+
+        events.forEach((e) => {
+          if (e.event_type === "click" && e.data) {
+            // Add some padding since clicks might not hit the edges
+            if (e.data.x > maxX) maxX = e.data.x;
+            if (e.data.y > maxY) maxY = e.data.y;
+          }
+        });
+
+        // Estimate viewport - clicks probably don't reach the very edge
+        // so add ~10% padding to estimate full viewport
+        if (maxX > 0) {
+          // Round to common viewport widths
+          if (maxX < 1300) originalViewportWidth = 1366;
+          else if (maxX < 1500) originalViewportWidth = 1536;
+          else if (maxX < 1800) originalViewportWidth = 1920;
+          else originalViewportWidth = 2560;
+        } else {
+          originalViewportWidth = 1920; // Default
+        }
+
+        if (maxY > 0) {
+          // Round to common viewport heights
+          if (maxY < 700) originalViewportHeight = 768;
+          else if (maxY < 900) originalViewportHeight = 900;
+          else if (maxY < 1000) originalViewportHeight = 1080;
+          else originalViewportHeight = 1200;
+        } else {
+          originalViewportHeight = 1080; // Default
+        }
+
+        console.log(
+          `Detected original viewport: ${originalViewportWidth}x${originalViewportHeight} (max click: ${maxX}, ${maxY})`
+        );
+      }
+
+      const eventConfig = {
+        page_load: {
+          icon: "🌐",
+          label: "Navigate",
+          class: "navigate",
+          isPage: true,
+        },
+        tab_activated: {
+          icon: "📑",
+          label: "Tab",
+          class: "navigate",
+          isPage: true,
+        },
+        click: { icon: "👆", label: "Click", class: "click" },
+        scroll: { icon: "📜", label: "Scroll", class: "scroll" },
+        text_selection: { icon: "✂️", label: "Select", class: "select" },
+        copy: { icon: "📋", label: "Copy", class: "copy" },
+        paste: { icon: "📥", label: "Paste", class: "copy" },
+        form_input: { icon: "⌨️", label: "Input", class: "input" },
+        form_submit: { icon: "📤", label: "Submit", class: "input" },
+        download_click: { icon: "⬇️", label: "Download", class: "click" },
+      };
+
+      let dom = {};
+
+      // Listen for messages from iframe
+      window.addEventListener("message", (e) => {
+        if (e.data.type === "scrollHeight") {
+          iframeScrollHeight = e.data.height || 1000;
+          iframeViewportHeight = e.data.viewportHeight || 500;
+        }
+      });
+
+      document
+        .getElementById("fileInput")
+        .addEventListener("change", async (e) => {
+          const file = e.target.files[0];
+          if (!file) return;
+          try {
+            const text = await file.text();
+            const data = JSON.parse(text);
+            if (!Array.isArray(data)) throw new Error("Expected array");
+
+            events = data
+              .filter(
+                (e) =>
+                  eventConfig[e.event_type] &&
+                  e.url &&
+                  !e.url.startsWith("chrome://")
+              )
+              .sort((a, b) => new Date(a.timestamp) - new Date(b.timestamp));
+
+            if (events.length === 0) {
+              alert("No valid events found");
+              return;
+            }
+
+            document.getElementById(
+              "fileInfo"
+            ).textContent = `${file.name} (${events.length} events)`;
+
+            // Detect original viewport from click coordinates
+            detectOriginalViewport(events);
+
+            initPlayer();
+          } catch (err) {
+            alert("Error: " + err.message);
+          }
+        });
+
+      function initPlayer() {
+        const main = document.getElementById("mainContent");
+        const template = document.getElementById("playerTemplate");
+        main.innerHTML = "";
+        main.appendChild(template.content.cloneNode(true));
+
+        dom = {
+          iframe: document.getElementById("browserIframe"),
+          urlBar: document.getElementById("currentUrl"),
+          overlay: document.getElementById("iframeOverlay"),
+          clickIndicator: document.getElementById("clickIndicator"),
+          scrollIndicator: document.getElementById("scrollIndicator"),
+          toast: document.getElementById("actionToast"),
+          loading: document.getElementById("loadingOverlay"),
+          timeline: document.getElementById("timeline"),
+          progress: document.getElementById("timelineProgress"),
+          events: document.getElementById("timelineEvents"),
+          currentTime: document.getElementById("currentTime"),
+          totalTime: document.getElementById("totalTime"),
+          playBtn: document.getElementById("playBtn"),
+          eventsList: document.getElementById("eventsList"),
+          eventCount: document.getElementById("eventCount"),
+          statusDot: document.getElementById("statusDot"),
+          statusText: document.getElementById("statusText"),
+        };
+
+        startTime = new Date(events[0].timestamp).getTime();
+        endTime = new Date(events[events.length - 1].timestamp).getTime();
+        currentPlayTime = 0;
+        currentIndex = -1;
+
+        dom.totalTime.textContent = formatTime(endTime - startTime);
+        dom.eventCount.textContent = events.length;
+
+        renderTimelineMarkers();
+        renderEventsList();
+
+        dom.timeline.addEventListener("click", handleTimelineClick);
+        dom.iframe.addEventListener("load", () => {
+          dom.loading.classList.add("hidden");
+          // Request scroll height from iframe
+          dom.iframe.contentWindow?.postMessage(
+            { type: "getScrollHeight" },
+            "*"
+          );
+        });
+
+        seekToEvent(0);
+      }
+
+      function renderTimelineMarkers() {
+        dom.events.innerHTML = "";
+        const duration = endTime - startTime;
+        events.forEach((event, i) => {
+          const eventTime = new Date(event.timestamp).getTime() - startTime;
+          const pos = (eventTime / duration) * 100;
+          const marker = document.createElement("div");
+          marker.className = "timeline-event-marker";
+          if (eventConfig[event.event_type]?.isPage)
+            marker.classList.add("page");
+          else if (event.event_type === "click") marker.classList.add("click");
+          else if (event.event_type === "scroll")
+            marker.classList.add("scroll");
+          marker.style.left = `${pos}%`;
+          dom.events.appendChild(marker);
+        });
+      }
+
+      function renderEventsList() {
+        dom.eventsList.innerHTML = "";
+        events.forEach((event, i) => {
+          const config = eventConfig[event.event_type] || {
+            icon: "❓",
+            label: event.event_type,
+          };
+          const time = new Date(event.timestamp);
+          let detail = "";
+          if (event.url) {
+            try {
+              detail = new URL(event.url).hostname;
+            } catch {
+              detail = event.url.substring(0, 30);
+            }
+          }
+          if (event.data?.title) detail = event.data.title.substring(0, 40);
+          if (event.data?.element?.text)
+            detail = event.data.element.text.substring(0, 40);
+          if (event.event_type === "scroll") {
+            const dir =
+              event.data?.direction === "down"
+                ? "↓"
+                : event.data?.direction === "up"
+                ? "↑"
+                : "";
+            detail = `${event.data?.scroll_percent || 0}% ${dir}`;
+          }
+
+          const item = document.createElement("div");
+          item.className = "event-item" + (config.isPage ? " page" : "");
+          item.innerHTML = `
+          <div class="event-header">
+            <span class="event-icon">${config.icon}</span>
+            <span class="event-type">${config.label}</span>
+            <span class="event-time">${time.toLocaleTimeString()}</span>
+          </div>
+          <div class="event-detail">${detail || "—"}</div>
+        `;
+          item.onclick = () => seekToEvent(i);
+          dom.eventsList.appendChild(item);
+        });
+      }
+
+      function formatTime(ms) {
+        const sec = Math.floor(ms / 1000);
+        return `${Math.floor(sec / 60)}:${(sec % 60)
+          .toString()
+          .padStart(2, "0")}`;
+      }
+
+      function togglePlay() {
+        isPlaying = !isPlaying;
+        dom.playBtn.textContent = isPlaying ? "⏸" : "▶";
+        dom.statusDot.classList.toggle("playing", isPlaying);
+        dom.statusText.textContent = isPlaying ? "Playing" : "Paused";
+        isPlaying ? startPlayback() : stopPlayback();
+      }
+
+      function startPlayback() {
+        stopPlayback();
+        playInterval = setInterval(() => {
+          currentPlayTime += 100 * playbackSpeed;
+          const duration = endTime - startTime;
+          if (currentPlayTime >= duration) {
+            currentPlayTime = duration;
+            togglePlay();
+            return;
+          }
+          updateProgress();
+          processEventsUpTo(currentPlayTime);
+        }, 100);
+      }
+
+      function stopPlayback() {
+        if (playInterval) {
+          clearInterval(playInterval);
+          playInterval = null;
+        }
+      }
+
+      function updateProgress() {
+        const pct = (currentPlayTime / (endTime - startTime)) * 100;
+        dom.progress.style.width = `${pct}%`;
+        dom.currentTime.textContent = formatTime(currentPlayTime);
+      }
+
+      function processEventsUpTo(time) {
+        const targetTime = startTime + time;
+        while (currentIndex < events.length - 1) {
+          const nextEvent = events[currentIndex + 1];
+          if (new Date(nextEvent.timestamp).getTime() <= targetTime) {
+            currentIndex++;
+            executeEvent(events[currentIndex]);
+            highlightEvent(currentIndex);
+          } else break;
+        }
+      }
+
+      function executeEvent(event) {
+        const config = eventConfig[event.event_type];
+        if (!config) return;
+
+        let toastText = config.label;
+        if (event.data?.title)
+          toastText += `: ${event.data.title.substring(0, 30)}`;
+        else if (event.event_type === "scroll") {
+          const dir =
+            event.data?.direction === "down"
+              ? "↓"
+              : event.data?.direction === "up"
+              ? "↑"
+              : "";
+          toastText += `: ${event.data?.scroll_percent || 0}% ${dir}`;
+        }
+        showToast(config.icon, toastText, config.class);
+
+        switch (event.event_type) {
+          case "page_load":
+          case "tab_activated":
+            if (
+              event.url &&
+              event.url !== lastLoadedUrl &&
+              !event.url.startsWith("chrome://")
+            ) {
+              loadUrl(event.url);
+              lastLoadedUrl = event.url;
+            }
+            break;
+          case "click":
+            if (event.data?.x && event.data?.y)
+              showClick(
+                event.data.x,
+                event.data.y,
+                event.data.viewport_width,
+                event.data.viewport_height
+              );
+            break;
+          case "scroll":
+            scrollIframe(
+              event.data?.scroll_percent || 0,
+              event.data?.direction
+            );
+            break;
+        }
+      }
+
+      function loadUrl(url) {
+        dom.urlBar.textContent = url;
+        dom.loading.classList.remove("hidden");
+        // Load through proxy
+        dom.iframe.src = PROXY_URL + encodeURIComponent(url);
+      }
+
+      function scrollIframe(percent, direction) {
+        const pct = Math.min(100, Math.max(0, percent));
+
+        // Calculate scroll position
+        const scrollableHeight = iframeScrollHeight - iframeViewportHeight;
+        const scrollPosition = (pct / 100) * scrollableHeight;
+
+        // Send scroll command to iframe
+        try {
+          dom.iframe.contentWindow?.postMessage(
+            {
+              type: "scroll",
+              position: scrollPosition,
+              smooth: true,
+            },
+            "*"
+          );
+        } catch (e) {
+          console.log("Could not scroll iframe:", e);
+        }
+
+        // Show scroll indicator
+        const dir = direction === "down" ? "↓" : direction === "up" ? "↑" : "";
+        dom.scrollIndicator.textContent = `${Math.round(pct)}% ${dir}`;
+        dom.scrollIndicator.classList.add("visible");
+
+        clearTimeout(window.scrollHideTimeout);
+        window.scrollHideTimeout = setTimeout(() => {
+          dom.scrollIndicator.classList.remove("visible");
+        }, 1500);
+      }
+
+      function showClick(x, y, eventViewportW, eventViewportH) {
+        const rect = dom.overlay.getBoundingClientRect();
+
+        // Priority: 1) viewport from event data, 2) detected viewport, 3) defaults
+        const srcWidth = eventViewportW || originalViewportWidth || 1920;
+        const srcHeight = eventViewportH || originalViewportHeight || 1080;
+
+        // Scale coordinates from original viewport to current overlay size
+        const scaleX = rect.width / srcWidth;
+        const scaleY = rect.height / srcHeight;
+
+        const clickX = x * scaleX;
+        const clickY = y * scaleY;
+
+        // Clamp to overlay bounds
+        dom.clickIndicator.style.left = `${Math.max(
+          20,
+          Math.min(clickX, rect.width - 20)
+        )}px`;
+        dom.clickIndicator.style.top = `${Math.max(
+          20,
+          Math.min(clickY, rect.height - 20)
+        )}px`;
+
+        dom.clickIndicator.classList.remove("animate");
+        void dom.clickIndicator.offsetWidth;
+        dom.clickIndicator.classList.add("animate");
+      }
+
+      function showToast(icon, text, className) {
+        dom.toast.innerHTML = `<span>${icon}</span><span>${text}</span>`;
+        dom.toast.className = `action-toast ${className} visible`;
+        setTimeout(() => dom.toast.classList.remove("visible"), 2000);
+      }
+
+      function highlightEvent(index) {
+        document
+          .querySelectorAll(".event-item")
+          .forEach((el, i) => el.classList.toggle("active", i === index));
+        const active = dom.eventsList.querySelector(".event-item.active");
+        if (active)
+          active.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      }
+
+      function seekToEvent(index) {
+        if (index < 0 || index >= events.length) return;
+        currentPlayTime =
+          new Date(events[index].timestamp).getTime() - startTime;
+        currentIndex = index - 1;
+        updateProgress();
+        processEventsUpTo(currentPlayTime);
+      }
+
+      function prevEvent() {
+        if (currentIndex > 0) seekToEvent(currentIndex - 1);
+      }
+      function nextEvent() {
+        if (currentIndex < events.length - 1) seekToEvent(currentIndex + 1);
+      }
+      function skipTo(time) {
+        currentPlayTime = time;
+        currentIndex = -1;
+        lastLoadedUrl = "";
+        updateProgress();
+        processEventsUpTo(currentPlayTime);
+      }
+      function skipToEnd() {
+        skipTo(endTime - startTime);
+      }
+      function changeSpeed() {
+        playbackSpeed = parseFloat(
+          document.getElementById("speedSelect").value
+        );
+      }
+      function handleTimelineClick(e) {
+        const rect = dom.timeline.getBoundingClientRect();
+        skipTo(((e.clientX - rect.left) / rect.width) * (endTime - startTime));
+      }
+
+      document.addEventListener("keydown", (e) => {
+        if (!events.length) return;
+        if (e.code === "Space") {
+          e.preventDefault();
+          togglePlay();
+        } else if (e.code === "ArrowLeft") prevEvent();
+        else if (e.code === "ArrowRight") nextEvent();
+      });
+    </script>
+  </body>
+</html>

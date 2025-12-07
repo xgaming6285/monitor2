@@ -1,162 +1,150 @@
 /**
  * Popup Script
- * Handles extension configuration and server registration
+ * Handles extension configuration and log downloads
  */
 
-document.addEventListener('DOMContentLoaded', async () => {
-  const serverUrlInput = document.getElementById('serverUrl');
-  const computerNameInput = document.getElementById('computerName');
-  const registerBtn = document.getElementById('registerBtn');
-  const disconnectBtn = document.getElementById('disconnectBtn');
-  const statusDiv = document.getElementById('status');
-  const messageDiv = document.getElementById('message');
-  const configSection = document.getElementById('configSection');
-  const connectedSection = document.getElementById('connectedSection');
-  const queueCountSpan = document.getElementById('queueCount');
-  const computerIdSpan = document.getElementById('computerId');
+document.addEventListener("DOMContentLoaded", async () => {
+  const computerNameInput = document.getElementById("computerName");
+  const monitorToggle = document.getElementById("monitorToggle");
+  const downloadTxtBtn = document.getElementById("downloadTxtBtn");
+  const downloadJsonBtn = document.getElementById("downloadJsonBtn");
+  const clearBtn = document.getElementById("clearBtn");
+  const statusDiv = document.getElementById("status");
+  const statusText = document.getElementById("statusText");
+  const messageDiv = document.getElementById("message");
+  const eventCountSpan = document.getElementById("eventCount");
+  const computerIdSpan = document.getElementById("computerId");
 
   // Load saved settings
   const stored = await chrome.storage.local.get([
-    'serverUrl', 
-    'apiKey', 
-    'computerId', 
-    'computerName'
+    "computerId",
+    "computerName",
+    "isMonitoring",
   ]);
 
-  if (stored.serverUrl) {
-    serverUrlInput.value = stored.serverUrl;
-  }
-  
   if (stored.computerName) {
     computerNameInput.value = stored.computerName;
   } else {
-    // Try to get a default computer name
-    computerNameInput.value = 'Browser-' + Math.random().toString(36).substring(2, 8).toUpperCase();
+    // Generate default computer name
+    const defaultName =
+      "Browser-" + Math.random().toString(36).substring(2, 8).toUpperCase();
+    computerNameInput.value = defaultName;
+    chrome.storage.local.set({ computerName: defaultName });
   }
 
-  // Update UI based on connection status
-  updateUI(stored);
+  // Update status
+  updateStatus(stored.isMonitoring !== false);
 
-  // Get queue count from background
-  try {
-    const response = await chrome.runtime.sendMessage({ type: 'getStatus' });
-    if (response) {
-      queueCountSpan.textContent = response.queueCount || 0;
-    }
-  } catch (e) {
-    // Background might not be ready
-  }
+  // Get status from background
+  await refreshStatus();
 
-  // Register button
-  registerBtn.addEventListener('click', async () => {
-    const serverUrl = serverUrlInput.value.trim().replace(/\/$/, '');
-    const computerName = computerNameInput.value.trim();
+  // Refresh status periodically
+  setInterval(refreshStatus, 2000);
 
-    if (!serverUrl) {
-      showMessage('Please enter a server URL', 'error');
-      return;
-    }
-
-    if (!computerName) {
-      showMessage('Please enter a computer name', 'error');
-      return;
-    }
-
-    registerBtn.disabled = true;
-    registerBtn.textContent = 'Connecting...';
-    showMessage('', '');
-
+  // Monitor toggle
+  monitorToggle.addEventListener("change", async () => {
+    const enabled = monitorToggle.checked;
     try {
-      // Register with server
-      const response = await fetch(`${serverUrl}/api/register`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({
-          computer_name: computerName,
-          username: 'browser-extension',
-          os_version: navigator.userAgent,
-          agent_version: chrome.runtime.getManifest().version
-        })
+      await chrome.runtime.sendMessage({
+        type: "toggleMonitoring",
+        enabled: enabled,
       });
-
-      if (!response.ok) {
-        const error = await response.json().catch(() => ({ error: 'Server error' }));
-        throw new Error(error.error || `HTTP ${response.status}`);
-      }
-
-      const data = await response.json();
-
-      // Save credentials
-      await chrome.storage.local.set({
-        serverUrl: serverUrl,
-        apiKey: data.api_key,
-        computerId: data.computer_id,
-        computerName: computerName
-      });
-
-      showMessage('Connected successfully!', 'success');
-      updateUI({
-        serverUrl,
-        apiKey: data.api_key,
-        computerId: data.computer_id,
-        computerName
-      });
-
-      // Notify background to start sending
-      chrome.runtime.sendMessage({ type: 'configUpdated' });
-
-    } catch (error) {
-      showMessage(`Failed to connect: ${error.message}`, 'error');
-    } finally {
-      registerBtn.disabled = false;
-      registerBtn.textContent = 'Register & Connect';
+      updateStatus(enabled);
+      showMessage(
+        enabled ? "Recording started" : "Recording paused",
+        "success"
+      );
+    } catch (e) {
+      showMessage("Failed to toggle monitoring", "error");
     }
   });
 
-  // Disconnect button
-  disconnectBtn.addEventListener('click', async () => {
-    await chrome.storage.local.remove(['apiKey', 'computerId']);
-    showMessage('Disconnected', 'success');
-    updateUI({});
-    chrome.runtime.sendMessage({ type: 'configUpdated' });
+  // Computer name change
+  computerNameInput.addEventListener("change", async () => {
+    const name = computerNameInput.value.trim();
+    if (name) {
+      await chrome.storage.local.set({ computerName: name });
+      showMessage("Computer name saved", "success");
+    }
   });
 
-  function updateUI(stored) {
-    if (stored.apiKey && stored.computerId) {
-      // Connected
-      statusDiv.className = 'status connected';
-      statusDiv.textContent = '● Connected to server';
-      configSection.style.display = 'none';
-      connectedSection.style.display = 'block';
-      computerIdSpan.textContent = stored.computerId;
-      
-      // Show server URL as readonly info
-      serverUrlInput.disabled = true;
-      computerNameInput.disabled = true;
+  // Download TXT
+  downloadTxtBtn.addEventListener("click", async () => {
+    try {
+      await chrome.runtime.sendMessage({ type: "downloadLogs", format: "txt" });
+      showMessage("Downloading text file...", "success");
+    } catch (e) {
+      showMessage("Download failed: " + e.message, "error");
+    }
+  });
+
+  // Download JSON
+  downloadJsonBtn.addEventListener("click", async () => {
+    try {
+      await chrome.runtime.sendMessage({
+        type: "downloadLogs",
+        format: "json",
+      });
+      showMessage("Downloading JSON file...", "success");
+    } catch (e) {
+      showMessage("Download failed: " + e.message, "error");
+    }
+  });
+
+  // Clear logs
+  clearBtn.addEventListener("click", async () => {
+    if (
+      confirm(
+        "Are you sure you want to clear all recorded events? This cannot be undone."
+      )
+    ) {
+      try {
+        await chrome.runtime.sendMessage({ type: "clearLogs" });
+        eventCountSpan.textContent = "0";
+        showMessage("All logs cleared", "success");
+      } catch (e) {
+        showMessage("Failed to clear logs", "error");
+      }
+    }
+  });
+
+  async function refreshStatus() {
+    try {
+      const response = await chrome.runtime.sendMessage({ type: "getStatus" });
+      if (response) {
+        eventCountSpan.textContent = response.eventCount || 0;
+        computerIdSpan.textContent = response.computerId || "-";
+        updateStatus(response.isMonitoring !== false);
+      }
+    } catch (e) {
+      // Background might not be ready
+    }
+  }
+
+  function updateStatus(isActive) {
+    monitorToggle.checked = isActive;
+    if (isActive) {
+      statusDiv.className = "status active";
+      statusText.textContent = "● Recording";
     } else {
-      // Not connected
-      statusDiv.className = 'status disconnected';
-      statusDiv.textContent = '● Not connected';
-      configSection.style.display = 'block';
-      connectedSection.style.display = 'none';
-      computerIdSpan.textContent = '-';
-      
-      serverUrlInput.disabled = false;
-      computerNameInput.disabled = false;
+      statusDiv.className = "status paused";
+      statusText.textContent = "● Paused";
     }
   }
 
   function showMessage(text, type) {
     if (!text) {
-      messageDiv.style.display = 'none';
-      messageDiv.className = '';
+      messageDiv.style.display = "none";
+      messageDiv.className = "";
       return;
     }
     messageDiv.textContent = text;
     messageDiv.className = type;
-    messageDiv.style.display = 'block';
+    messageDiv.style.display = "block";
+
+    // Auto-hide after 3 seconds
+    setTimeout(() => {
+      messageDiv.style.display = "none";
+    }, 3000);
   }
 });
-
