@@ -69,6 +69,7 @@ async function registerWithServer(url, name) {
         username: "Browser Extension",
         os_version: navigator.userAgent,
         agent_version: chrome.runtime.getManifest().version,
+        device_type: "extension", // Identify as browser extension for linking
       }),
     });
 
@@ -85,17 +86,26 @@ async function registerWithServer(url, name) {
     serverUrl = url;
     computerName = name;
 
+    // Save parent computer ID if linked to a desktop agent
+    const parentComputerId = data.parent_computer_id || null;
+
     await chrome.storage.local.set({
       computerId,
       apiKey,
       serverUrl,
       computerName,
+      parentComputerId,
     });
 
     // Start sending events
     startServerConnection();
 
-    return { success: true, computerId, message: data.message };
+    return {
+      success: true,
+      computerId,
+      message: data.message,
+      parentComputerId: parentComputerId,
+    };
   } catch (error) {
     console.error("Registration failed:", error);
     return { success: false, error: error.message };

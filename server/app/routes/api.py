@@ -45,20 +45,37 @@ def require_api_key(f):
 @api_bp.route('/register', methods=['POST'])
 def register_computer():
     """
-    Register a new monitored computer
+    Register a new monitored computer or browser extension
     
     Request body:
     {
         "computer_name": "PC-SALES-001",
         "username": "john.doe",
         "os_version": "Windows 10 Pro",
-        "agent_version": "1.0.0"
+        "agent_version": "1.0.0",
+        "device_type": "desktop" or "extension"
     }
     """
     data = request.get_json()
     
     if not data or 'computer_name' not in data:
         return jsonify({'error': 'computer_name is required'}), 400
+    
+    # Determine device type (default to 'desktop' for backward compatibility)
+    device_type = data.get('device_type', 'desktop')
+    client_ip = request.remote_addr
+    parent_computer_id = None
+    
+    # If this is an extension, try to find a parent desktop agent with the same IP
+    if device_type == 'extension':
+        # Look for an existing desktop agent from the same IP address
+        parent = Computer.query.filter_by(
+            ip_address=client_ip,
+            device_type='desktop'
+        ).order_by(Computer.registered_at.desc()).first()
+        
+        if parent:
+            parent_computer_id = parent.id
     
     # Generate unique API key
     api_key = generate_api_key()
@@ -68,10 +85,12 @@ def register_computer():
         username=data.get('username'),
         os_version=data.get('os_version'),
         agent_version=data.get('agent_version'),
-        ip_address=request.remote_addr,
+        ip_address=client_ip,
         api_key=api_key,
         last_seen=datetime.utcnow(),
-        is_online=True
+        is_online=True,
+        device_type=device_type,
+        parent_computer_id=parent_computer_id
     )
     
     db.session.add(computer)
@@ -84,7 +103,8 @@ def register_computer():
         'success': True,
         'computer_id': computer.id,
         'api_key': api_key,
-        'message': 'Computer registered successfully'
+        'message': 'Computer registered successfully',
+        'parent_computer_id': parent_computer_id
     }), 201
 
 
@@ -278,20 +298,44 @@ def receive_live_window_event(computer):
 
 @api_bp.route('/computers', methods=['GET'])
 def list_computers():
-    """Get list of all registered computers"""
-    computers = Computer.query.order_by(Computer.registered_at.desc()).all()
+    """Get list of all registered computers with extensions grouped under parent devices"""
+    # Get all computers
+    all_computers = Computer.query.order_by(Computer.registered_at.desc()).all()
     
     # Update online status based on last_seen
     timeout = datetime.utcnow() - timedelta(minutes=2)
-    for computer in computers:
+    for computer in all_computers:
         if computer.last_seen and computer.last_seen < timeout:
             computer.is_online = False
     
     db.session.commit()
     
+    # Separate desktop agents and extensions
+    desktop_computers = []
+    standalone_extensions = []
+    
+    for computer in all_computers:
+        if computer.device_type == 'extension':
+            # Only include extensions that don't have a parent (orphaned/standalone)
+            if not computer.parent_computer_id:
+                standalone_extensions.append(computer)
+        else:
+            # Desktop agent - include with its linked extensions
+            desktop_computers.append(computer)
+    
+    # Build result with extensions nested under their parent
+    result = []
+    for computer in desktop_computers:
+        computer_dict = computer.to_dict(include_extensions=True)
+        result.append(computer_dict)
+    
+    # Add standalone extensions (those without a parent device)
+    for ext in standalone_extensions:
+        result.append(ext.to_dict())
+    
     return jsonify({
-        'computers': [c.to_dict() for c in computers],
-        'total': len(computers)
+        'computers': result,
+        'total': len(result)
     })
 
 

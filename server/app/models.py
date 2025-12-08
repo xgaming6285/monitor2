@@ -25,12 +25,19 @@ class Computer(db.Model):
     is_online = db.Column(db.Boolean, default=False)
     registered_at = db.Column(db.DateTime, default=datetime.utcnow)
     
+    # Device type: 'desktop' for desktop agent, 'extension' for browser extension
+    device_type = db.Column(db.String(20), default='desktop')
+    
+    # Parent computer ID for extensions linked to desktop agents
+    parent_computer_id = db.Column(db.String(36), db.ForeignKey('computers.id'), nullable=True)
+    
     # Relationships
     events = db.relationship('Event', backref='computer', lazy='dynamic')
     sessions = db.relationship('Session', backref='computer', lazy='dynamic')
+    extensions = db.relationship('Computer', backref=db.backref('parent', remote_side=[id]), lazy='dynamic')
     
-    def to_dict(self):
-        return {
+    def to_dict(self, include_extensions=False):
+        result = {
             'id': self.id,
             'computer_name': self.computer_name,
             'username': self.username,
@@ -39,8 +46,15 @@ class Computer(db.Model):
             'ip_address': self.ip_address,
             'last_seen': self.last_seen.isoformat() if self.last_seen else None,
             'is_online': self.is_online,
-            'registered_at': self.registered_at.isoformat() if self.registered_at else None
+            'registered_at': self.registered_at.isoformat() if self.registered_at else None,
+            'device_type': self.device_type,
+            'parent_computer_id': self.parent_computer_id
         }
+        
+        if include_extensions:
+            result['extensions'] = [ext.to_dict() for ext in self.extensions]
+        
+        return result
 
 
 class Event(db.Model):
