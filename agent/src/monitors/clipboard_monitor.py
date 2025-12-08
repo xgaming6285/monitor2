@@ -71,9 +71,9 @@ class ClipboardMonitor:
             elif win32clipboard.IsClipboardFormatAvailable(win32con.CF_HDROP):
                 try:
                     # Try to get file paths using shell32
-                    import ctypes
-                    from ctypes import wintypes
-                    
+                import ctypes
+                from ctypes import wintypes
+                
                     shell32 = ctypes.windll.shell32
                     h_drop = win32clipboard.GetClipboardData(win32con.CF_HDROP)
                     
@@ -94,8 +94,8 @@ class ClipboardMonitor:
                             content = '\n'.join(file_paths)
                         content_type = 'files'
                     else:
-                        content = "[Files copied]"
-                        content_type = 'files'
+                    content = "[Files copied]"
+                    content_type = 'files'
                 except Exception as e:
                     if DEBUG_MODE:
                         print(f"File path extraction error: {e}")
@@ -239,7 +239,7 @@ class ClipboardMonitor:
                             if content_type == 'image' and image_data:
                                 print(f"Clipboard: {content_type} - {len(image_data)} bytes base64")
                             else:
-                                print(f"Clipboard: {content_type} - {display_content[:50]}...")
+                            print(f"Clipboard: {content_type} - {display_content[:50]}...")
                 
             except Exception as e:
                 if DEBUG_MODE:
