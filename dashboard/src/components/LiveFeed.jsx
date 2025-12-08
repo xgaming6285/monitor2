@@ -11,6 +11,8 @@ import {
   Filter,
   Download,
   Trash2,
+  Image,
+  ClipboardPaste,
 } from "lucide-react";
 import { format } from "date-fns";
 
@@ -25,6 +27,11 @@ const EVENT_ICONS = {
     icon: Clipboard,
     color: "text-purple-400",
     bg: "bg-purple-500/20",
+  },
+  clipboard_paste: {
+    icon: ClipboardPaste,
+    color: "text-pink-400",
+    bg: "bg-pink-500/20",
   },
   file_created: {
     icon: FolderOpen,
@@ -93,14 +100,51 @@ function EventItem({ event }) {
           </span>
         );
       case "clipboard_copy":
+        // Check if it's an image
+        if (data.content_type === "image" && data.image_base64) {
+          return (
+            <div className="flex flex-col gap-2">
+              <span>
+                Copied image{" "}
+                <span className="text-purple-300">{data.content}</span>
+                {data.source_process && (
+                  <span className="text-gray-500">
+                    {" "}
+                    from {data.source_process}
+                  </span>
+                )}
+              </span>
+              <img
+                src={`data:image/png;base64,${data.image_base64}`}
+                alt="Clipboard image"
+                className="max-w-xs max-h-32 rounded border border-purple-500/30 mt-1"
+              />
+            </div>
+          );
+        }
         return (
           <span>
             Copied:{" "}
             <span className="text-purple-300 font-mono text-sm">
               "{data.content?.substring(0, 80)}"
             </span>
+            {data.content_type === "files" && (
+              <span className="text-gray-400 text-xs ml-1">(files)</span>
+            )}
             {data.source_process && (
               <span className="text-gray-500"> from {data.source_process}</span>
+            )}
+          </span>
+        );
+      case "clipboard_paste":
+        return (
+          <span>
+            Pasted:{" "}
+            <span className="text-pink-300 font-mono text-sm">
+              "{data.content?.substring(0, 80)}"
+            </span>
+            {data.target_process && (
+              <span className="text-gray-500"> into {data.target_process}</span>
             )}
           </span>
         );
