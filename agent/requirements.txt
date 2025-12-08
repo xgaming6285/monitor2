@@ -6,7 +6,7 @@ pywin32==306
 pynput==1.7.6
 
 # Image processing for clipboard capture
-Pillow==10.1.0
+Pillow>=10.4.0
 
 # File system monitoring
 watchdog==3.0.0
