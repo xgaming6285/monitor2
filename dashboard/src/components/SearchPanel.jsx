@@ -27,6 +27,15 @@ function SearchPanel() {
   });
   const [totalResults, setTotalResults] = useState(0);
 
+  // Helper to convert local datetime-local value to UTC ISO string
+  const localToUTC = (localDateTimeStr) => {
+    if (!localDateTimeStr) return null;
+    // datetime-local gives us "YYYY-MM-DDTHH:mm" in local time
+    // Convert to UTC for the API
+    const localDate = new Date(localDateTimeStr);
+    return localDate.toISOString();
+  };
+
   const performSearch = useCallback(async () => {
     setLoading(true);
     try {
@@ -35,8 +44,9 @@ function SearchPanel() {
         params.append("computer_id", filters.computer_id);
       if (filters.event_type) params.append("event_type", filters.event_type);
       if (filters.category) params.append("category", filters.category);
-      if (filters.start) params.append("start", filters.start);
-      if (filters.end) params.append("end", filters.end);
+      // Convert local times to UTC for API query
+      if (filters.start) params.append("start", localToUTC(filters.start));
+      if (filters.end) params.append("end", localToUTC(filters.end));
       params.append("limit", "100");
 
       const response = await fetch(`/api/events?${params.toString()}`);

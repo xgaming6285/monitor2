@@ -427,16 +427,26 @@ function KeystrokeReplay() {
     return () => clearInterval(cleanupInterval);
   }, [isLiveMode]);
 
+  // Helper to convert local datetime-local value to UTC ISO string
+  const localToUTC = (localDateTimeStr) => {
+    if (!localDateTimeStr) return null;
+    // datetime-local gives us "YYYY-MM-DDTHH:mm" in local time
+    // Convert to UTC for the API
+    const localDate = new Date(localDateTimeStr);
+    return localDate.toISOString();
+  };
+
   // Load keystroke events
   const loadEvents = useCallback(async () => {
     if (!startTime || !endTime) return;
 
     setLoading(true);
     try {
+      // Convert local times to UTC for API query
       const params = new URLSearchParams({
         event_type: "keystroke",
-        start: startTime,
-        end: endTime,
+        start: localToUTC(startTime),
+        end: localToUTC(endTime),
         limit: "1000",
       });
 
