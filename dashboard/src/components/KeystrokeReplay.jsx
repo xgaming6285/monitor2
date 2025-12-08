@@ -208,14 +208,16 @@ function KeystrokeReplay() {
                 newText = newText.slice(0, -1);
               }
             } else if (key === "[SEL+DELETE]") {
-              // Selection was deleted - delete back to word boundary
-              let deleted = 0;
-              while (newText.length > 0 && deleted < 20) {
-                const char = newText[newText.length - 1];
-                newText = newText.slice(0, -1);
-                deleted++;
-                if (char === " " || char === "\n") break;
-              }
+              // Selection was deleted - we can't know cursor position
+              // so we can't accurately reconstruct. Leave text as-is.
+              // The raw keys will show what really happened.
+            } else if (
+              key === "[CTRL+ ]" ||
+              key === "[SHIFT+ ]" ||
+              key === "[ALT+ ]"
+            ) {
+              // Space with modifier - still treat as space
+              newText += " ";
             } else if (
               key.startsWith("[SHIFT+") ||
               key.startsWith("[CTRL+SHIFT+")
@@ -663,14 +665,15 @@ function KeystrokeReplay() {
             text = text.slice(0, -1);
           }
         } else if (key === "[SEL+DELETE]") {
-          // Selection was deleted - delete back to word boundary
-          let deleted = 0;
-          while (text.length > 0 && deleted < 20) {
-            const char = text[text.length - 1];
-            text = text.slice(0, -1);
-            deleted++;
-            if (char === " " || char === "\n") break;
-          }
+          // Selection was deleted - we can't know cursor position
+          // so we can't accurately reconstruct. Leave text as-is.
+        } else if (
+          key === "[CTRL+ ]" ||
+          key === "[SHIFT+ ]" ||
+          key === "[ALT+ ]"
+        ) {
+          // Space with modifier - still treat as space
+          text += " ";
         } else if (
           key.startsWith("[SHIFT+") ||
           key.startsWith("[CTRL+SHIFT+")
