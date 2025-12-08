@@ -45,14 +45,19 @@ def is_admin():
         return False
 
 
-def run_as_admin():
+def run_as_admin(extra_args=None):
     """Restart the script with admin privileges"""
+    args = sys.argv[1:]
+    if extra_args:
+        args.extend(extra_args)
+    
+    params = ' '.join([f'"{arg}"' for arg in args])
+    
     if sys.argv[0].endswith('.py'):
         script = sys.argv[0]
-        params = ' '.join([f'"{arg}"' for arg in sys.argv[1:]])
         ctypes.windll.shell32.ShellExecuteW(None, "runas", sys.executable, f'"{script}" {params}', None, 1)
     else:
-        ctypes.windll.shell32.ShellExecuteW(None, "runas", sys.argv[0], ' '.join(sys.argv[1:]), None, 1)
+        ctypes.windll.shell32.ShellExecuteW(None, "runas", sys.argv[0], params, None, 1)
     sys.exit(0)
 
 
@@ -245,9 +250,12 @@ def get_config_from_registry():
 def save_config_to_registry(dashboard_ip):
     """Save configuration to registry as backup"""
     try:
-        key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, REG_SERVICE_KEY, 0, winreg.KEY_SET_VALUE)
+        # Use CreateKeyEx to create the key if it doesn't exist
+        key = winreg.CreateKeyEx(winreg.HKEY_CURRENT_USER, REG_SERVICE_KEY, 0, winreg.KEY_SET_VALUE)
         winreg.SetValueEx(key, "DashboardIP", 0, winreg.REG_SZ, dashboard_ip)
+        winreg.SetValueEx(key, "InstallPath", 0, winreg.REG_SZ, str(INSTALL_DIR))
         winreg.CloseKey(key)
+        log("Config saved to registry")
     except Exception as e:
         log(f"Failed to save config to registry: {e}")
 
@@ -750,17 +758,52 @@ def test_connection(dashboard_ip, port=5000, timeout=5):
 
 # ============== Main Installation ==============
 
+def parse_args():
+    """Parse command line arguments"""
+    import argparse
+    parser = argparse.ArgumentParser(description='Monitor Agent Deployer')
+    parser.add_argument('--dashboard-ip', '-d', help='Dashboard IP address')
+    parser.add_argument('--silent', '-s', action='store_true', help='Silent mode (no prompts)')
+    return parser.parse_known_args()[0]
+
+
 def main():
     """Main installation process"""
+    args = parse_args()
+    
     print("=" * 50)
     print("  Monitor Agent Deployment")
     print("=" * 50)
     print()
     
+    # Get dashboard IP early (before elevation) if not provided
+    dashboard_ip = args.dashboard_ip
+    
     # Check for admin privileges
     if not is_admin():
+        # If we don't have the IP yet, get it before elevation
+        if not dashboard_ip:
+            dashboard_ip = get_config_from_registry()
+        
+        if not dashboard_ip:
+            try:
+                dashboard_ip = get_input_dialog(
+                    "Dashboard Configuration",
+                    "Enter the Dashboard IP address:\n(The device running the monitoring dashboard)"
+                )
+            except Exception as e:
+                # Fallback to console input
+                print(f"Dialog failed: {e}")
+                dashboard_ip = input("Enter the Dashboard IP address: ").strip()
+        
+        if not dashboard_ip:
+            show_message_box("Error", "Dashboard IP is required!")
+            return
+        
+        print(f"Dashboard IP: {dashboard_ip}")
         print("Requesting administrator privileges...")
-        run_as_admin()
+        # Pass the dashboard IP to the elevated process
+        run_as_admin(['--dashboard-ip', dashboard_ip])
         return
     
     log("Installation started")
@@ -777,11 +820,12 @@ def main():
     print("[2/8] Configuring firewall...")
     configure_firewall()
     
-    # Step 3: Get dashboard IP from user
+    # Step 3: Get dashboard IP (should already have it from args or before elevation)
     print("[3/8] Dashboard configuration...")
     
-    # Try to get from previous config or registry
-    dashboard_ip = get_config_from_registry()
+    # Try to get from args, then registry, then prompt
+    if not dashboard_ip:
+        dashboard_ip = get_config_from_registry()
     
     if not dashboard_ip:
         try:
