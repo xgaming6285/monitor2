@@ -232,6 +232,48 @@ def receive_live_keystroke(computer):
     return jsonify({'success': True})
 
 
+@api_bp.route('/live-window', methods=['POST'])
+@require_api_key
+def receive_live_window_event(computer):
+    """
+    Receive live window events (opened, closed, focused).
+    This is optimized for low-latency delivery to dashboards.
+    
+    Request body:
+    {
+        "timestamp": "2024-12-06T14:32:15.234Z",
+        "event_type": "window_opened|window_closed|window_focused",
+        "category": "window",
+        "data": {
+            "window_title": "Chrome - Google",
+            "process_name": "chrome.exe",
+            "exe_path": "C:\\Program Files\\Google\\Chrome\\chrome.exe"
+        }
+    }
+    """
+    data = request.get_json()
+    
+    if not data:
+        return jsonify({'error': 'Event data required'}), 400
+    
+    event_type = data.get('event_type', 'window_event')
+    
+    # Build the live window event
+    live_event = {
+        'computer_id': computer.id,
+        'computer_name': computer.computer_name,
+        'timestamp': data.get('timestamp', datetime.utcnow().isoformat()),
+        'event_type': event_type,
+        'data': data.get('data', {})
+    }
+    
+    # Emit immediately to all connected dashboards
+    socketio.emit('live_window', live_event, namespace='/live', room=f'computer_{computer.id}')
+    socketio.emit('live_window', live_event, namespace='/live', room='all_events')
+    
+    return jsonify({'success': True})
+
+
 # ============== Dashboard Endpoints ==============
 
 @api_bp.route('/computers', methods=['GET'])

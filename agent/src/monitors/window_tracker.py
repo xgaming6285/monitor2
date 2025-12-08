@@ -20,25 +20,34 @@ from ..config import DEBUG_MODE
 class WindowTracker:
     """Tracks active window changes and focus duration"""
     
-    def __init__(self, event_callback, keystroke_logger=None):
+    def __init__(self, event_callback, keystroke_logger=None, live_window_callback=None):
         """
         Initialize window tracker
         
         Args:
             event_callback: Function to call with window events
             keystroke_logger: Optional KeystrokeLogger to update context
+            live_window_callback: Optional callback for real-time window state changes
         """
         self.event_callback = event_callback
         self.keystroke_logger = keystroke_logger
+        self.live_window_callback = live_window_callback
         
         self.current_window = None
         self.current_process = None
         self.current_exe = None
         self.window_start_time = None
         
+        # Track all open windows
+        self.known_windows = {}  # hwnd -> {title, process, exe}
+        
         self.running = False
         self.thread = None
         self.poll_interval = 0.5  # Check every 500ms
+    
+    def set_live_callback(self, callback):
+        """Set or update the live window callback"""
+        self.live_window_callback = callback
     
     def _get_active_window_info(self):
         """Get information about the currently active window"""
@@ -70,13 +79,85 @@ class WindowTracker:
                 print(f"Window tracking error: {e}")
             return None, None, None
     
+    def _get_all_windows(self):
+        """Get all visible windows with titles"""
+        if not HAS_WIN32:
+            return {}
+        
+        windows = {}
+        
+        def enum_callback(hwnd, _):
+            try:
+                # Check if window is visible and has a title
+                if win32gui.IsWindowVisible(hwnd):
+                    title = win32gui.GetWindowText(hwnd)
+                    if title and len(title.strip()) > 0:
+                        # Get process info
+                        _, pid = win32process.GetWindowThreadProcessId(hwnd)
+                        try:
+                            process = psutil.Process(pid)
+                            process_name = process.name()
+                            exe_path = process.exe()
+                        except (psutil.NoSuchProcess, psutil.AccessDenied):
+                            process_name = 'unknown'
+                            exe_path = ''
+                        
+                        # Skip certain system windows
+                        if process_name.lower() not in ['applicationframehost.exe', 'textinputhost.exe', 'searchhost.exe']:
+                            windows[hwnd] = {
+                                'title': title,
+                                'process': process_name,
+                                'exe': exe_path,
+                                'hwnd': hwnd
+                            }
+            except Exception:
+                pass
+            return True
+        
+        try:
+            win32gui.EnumWindows(enum_callback, None)
+        except Exception as e:
+            if DEBUG_MODE:
+                print(f"Error enumerating windows: {e}")
+        
+        return windows
+    
+    def _send_live_window_event(self, event_type, window_data):
+        """Send a live window event"""
+        if not self.live_window_callback:
+            return
+        
+        try:
+            self.live_window_callback({
+                'timestamp': datetime.utcnow().isoformat(),
+                'event_type': event_type,
+                'category': 'window',
+                'data': window_data
+            })
+        except Exception as e:
+            if DEBUG_MODE:
+                print(f"Live window event error: {e}")
+    
     def _track_windows(self):
         """Background thread to track window changes"""
+        # Initial scan of all windows
+        self.known_windows = self._get_all_windows()
+        
+        # Send initial window list
+        for hwnd, win_data in self.known_windows.items():
+            self._send_live_window_event('window_opened', {
+                'window_title': win_data['title'],
+                'process_name': win_data['process'],
+                'exe_path': win_data['exe'],
+                'hwnd': hwnd
+            })
+        
         while self.running:
             try:
+                # Track active window changes (existing logic)
                 window_title, process_name, exe_path = self._get_active_window_info()
                 
-                # Check if window changed
+                # Check if active window changed
                 if window_title and (window_title != self.current_window or 
                                     process_name != self.current_process):
                     
@@ -122,8 +203,47 @@ class WindowTracker:
                         }
                     })
                     
+                    # Send live focus change event
+                    self._send_live_window_event('window_focused', {
+                        'window_title': window_title,
+                        'process_name': process_name,
+                        'exe_path': exe_path
+                    })
+                    
                     if DEBUG_MODE:
                         print(f"Window changed: {process_name} - {window_title[:50]}")
+                
+                # Track all windows for open/close detection
+                current_windows = self._get_all_windows()
+                current_hwnds = set(current_windows.keys())
+                known_hwnds = set(self.known_windows.keys())
+                
+                # Detect newly opened windows
+                for hwnd in current_hwnds - known_hwnds:
+                    win_data = current_windows[hwnd]
+                    self._send_live_window_event('window_opened', {
+                        'window_title': win_data['title'],
+                        'process_name': win_data['process'],
+                        'exe_path': win_data['exe'],
+                        'hwnd': hwnd
+                    })
+                    if DEBUG_MODE:
+                        print(f"Window opened: {win_data['process']} - {win_data['title'][:50]}")
+                
+                # Detect closed windows
+                for hwnd in known_hwnds - current_hwnds:
+                    win_data = self.known_windows[hwnd]
+                    self._send_live_window_event('window_closed', {
+                        'window_title': win_data['title'],
+                        'process_name': win_data['process'],
+                        'exe_path': win_data['exe'],
+                        'hwnd': hwnd
+                    })
+                    if DEBUG_MODE:
+                        print(f"Window closed: {win_data['process']} - {win_data['title'][:50]}")
+                
+                # Update known windows
+                self.known_windows = current_windows
                 
             except Exception as e:
                 if DEBUG_MODE:

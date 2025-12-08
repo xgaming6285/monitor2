@@ -127,11 +127,26 @@ class EventSender:
             except:
                 pass
     
+    def send_live_window_event(self, event: dict):
+        """
+        Queue a live window event (open/close/focus) for immediate sending.
+        Non-blocking - adds to queue and returns immediately.
+        """
+        try:
+            self.live_queue.put_nowait(event)
+        except queue.Full:
+            # Queue is full, drop oldest and add new
+            try:
+                self.live_queue.get_nowait()
+                self.live_queue.put_nowait(event)
+            except:
+                pass
+    
     def _live_sender_loop(self):
-        """Background thread to send live keystrokes immediately"""
+        """Background thread to send live keystrokes and window events immediately"""
         while self.running:
             try:
-                # Get keystroke from queue with timeout
+                # Get event from queue with timeout
                 event = self.live_queue.get(timeout=0.1)
                 
                 if not self.config.api_key:
@@ -140,19 +155,26 @@ class EventSender:
                 try:
                     self.session.headers['X-API-Key'] = self.config.api_key
                     
+                    # Determine endpoint based on event type
+                    event_type = event.get('event_type', '')
+                    if event_type in ('window_opened', 'window_closed', 'window_focused'):
+                        endpoint = '/live-window'
+                    else:
+                        endpoint = '/live-keystroke'
+                    
                     # Send to dedicated live endpoint for minimal latency
                     response = self.session.post(
-                        self._get_api_url('/live-keystroke'),
+                        self._get_api_url(endpoint),
                         json=event,
                         timeout=2  # Short timeout for live data
                     )
                     
                     if DEBUG_MODE and response.status_code != 200:
-                        print(f"Live keystroke send failed: {response.status_code}")
+                        print(f"Live event send failed: {response.status_code}")
                         
                 except requests.RequestException as e:
                     if DEBUG_MODE:
-                        print(f"Live keystroke error: {e}")
+                        print(f"Live event error: {e}")
                         
             except queue.Empty:
                 continue
