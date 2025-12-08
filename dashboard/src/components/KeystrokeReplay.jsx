@@ -262,6 +262,23 @@ function KeystrokeReplay() {
             return newWindows;
           });
           console.log(`Window closed: ${processName} - ${windowTitle}`);
+        } else if (event.event_type === "process_closed") {
+          // Process completely exited - remove ALL windows for this process
+          setLiveWindows((prev) => {
+            const newWindows = {};
+            for (const [key, windowData] of Object.entries(prev)) {
+              // Keep windows that don't belong to the closed process
+              if (windowData.process !== processName) {
+                newWindows[key] = windowData;
+              } else {
+                console.log(
+                  `Closing window (process exit): ${windowData.process} - ${windowData.window}`
+                );
+              }
+            }
+            return newWindows;
+          });
+          console.log(`Process closed - all windows removed: ${processName}`);
         } else if (event.event_type === "window_focused") {
           // Update the window's activity time to bring it to front
           setLiveWindows((prev) => {

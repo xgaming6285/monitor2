@@ -231,8 +231,10 @@ class WindowTracker:
                         print(f"Window opened: {win_data['process']} - {win_data['title'][:50]}")
                 
                 # Detect closed windows
+                closed_processes = set()
                 for hwnd in known_hwnds - current_hwnds:
                     win_data = self.known_windows[hwnd]
+                    closed_processes.add(win_data['process'])
                     self._send_live_window_event('window_closed', {
                         'window_title': win_data['title'],
                         'process_name': win_data['process'],
@@ -241,6 +243,20 @@ class WindowTracker:
                     })
                     if DEBUG_MODE:
                         print(f"Window closed: {win_data['process']} - {win_data['title'][:50]}")
+                
+                # Check if any closed process has completely exited (no more windows)
+                # If so, send a process_closed event to close ALL windows for that process
+                for process_name in closed_processes:
+                    # Check if this process still has any open windows
+                    process_still_running = any(
+                        w['process'] == process_name for w in current_windows.values()
+                    )
+                    if not process_still_running:
+                        self._send_live_window_event('process_closed', {
+                            'process_name': process_name
+                        })
+                        if DEBUG_MODE:
+                            print(f"Process completely closed: {process_name}")
                 
                 # Update known windows
                 self.known_windows = current_windows
