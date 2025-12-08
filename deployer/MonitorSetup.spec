@@ -2,11 +2,11 @@
 
 
 a = Analysis(
-    ['deploy.py'],
+    ['c:\\Users\\dani0\\GitProjects\\monitor\\deployer\\deploy.py'],
     pathex=[],
     binaries=[],
-    datas=[('..\\agent', 'agent'), ('..\\extensions\\chromium', 'extensions/chromium')],
-    hiddenimports=['tkinter', 'tkinter.simpledialog', 'winreg'],
+    datas=[('c:\\Users\\dani0\\GitProjects\\monitor\\agent', 'agent'), ('c:\\Users\\dani0\\GitProjects\\monitor\\extensions\\chromium', 'extensions/chromium')],
+    hiddenimports=['tkinter', 'tkinter.simpledialog'],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
@@ -36,4 +36,5 @@ exe = EXE(
     codesign_identity=None,
     entitlements_file=None,
     uac_admin=True,
+    icon='NONE',
 )

@@ -1017,9 +1017,24 @@ def main():
     log("Installation completed successfully")
     
     # Wait a bit then self-destruct
-    time.sleep(5)
+    print("  Window will close in 60 seconds...")
+    time.sleep(60)
     self_destruct()
 
 
 if __name__ == '__main__':
-    main()
+    try:
+        main()
+    except Exception as e:
+        print()
+        print("=" * 50)
+        print("  ERROR OCCURRED!")
+        print("=" * 50)
+        print()
+        print(f"  Error: {e}")
+        print()
+        import traceback
+        traceback.print_exc()
+        print()
+        print("  Window will close in 60 seconds...")
+        time.sleep(60)
