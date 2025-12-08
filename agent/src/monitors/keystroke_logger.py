@@ -217,7 +217,7 @@ class KeystrokeLogger:
                 else:
                     # Unclosed bracket, treat as regular character
                     result.append(raw_keys[i])
-                        i += 1
+                    i += 1
                     continue
             
             # Regular character
@@ -407,7 +407,7 @@ class KeystrokeLogger:
             
             # Add modifier prefixes for shortcuts (if not already handled)
             if char and not char.startswith('['):
-            if self.ctrl_pressed:
+                if self.ctrl_pressed:
                     char = f'[CTRL+{char.upper()}]'
                 elif self.alt_pressed:
                     char = f'[ALT+{char.upper()}]'
@@ -421,14 +421,14 @@ class KeystrokeLogger:
                         # Ctrl+Shift+Arrow = select by word
                         char = f'[CTRL+SHIFT+{char[1:-1]}]'
                         self.selection_active = True
-                elif char == '[BACKSPACE]':
+                    elif char == '[BACKSPACE]':
                         char = '[CTRL+SHIFT+BACKSPACE]'
                     elif char == '[DELETE]':
                         char = '[CTRL+SHIFT+DELETE]'
                 elif self.ctrl_pressed:
                     if char == '[BACKSPACE]':
                         char = '[CTRL+BACKSPACE]'
-                elif char == '[DELETE]':
+                    elif char == '[DELETE]':
                         char = '[CTRL+DELETE]'
                     elif char in ['[LEFT]', '[RIGHT]']:
                         # Ctrl+Arrow = word navigation
