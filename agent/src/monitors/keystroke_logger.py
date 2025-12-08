@@ -159,11 +159,21 @@ class KeystrokeLogger:
                         # Extract paste content from Win+V and add it to result
                         paste_content = special[8:-2]  # Remove [WIN+V:" and "]
                         result.extend(list(paste_content))
+                    elif special == '[SEL+DELETE]':
+                        # Selection was deleted - we don't know how much was selected
+                        # Try to be smart: look back for word boundaries if Ctrl was involved
+                        # For now, delete back to the last space or up to 20 chars
+                        deleted = 0
+                        while result and deleted < 20:
+                            char = result.pop()
+                            deleted += 1
+                            if char == ' ' or char == '\n':
+                                break
+                    elif special.startswith('[CTRL+SHIFT+') or special.startswith('[SHIFT+'):
+                        # Selection operations don't produce text, skip them
+                        pass
                     elif special.startswith('[CTRL+') or special.startswith('[ALT+') or special.startswith('[WIN+'):
                         # Other shortcuts don't produce text, skip them
-                        pass
-                    elif special.startswith('[SHIFT+'):
-                        # Selection operations don't produce text
                         pass
                     elif special.startswith('[NUM'):
                         # Numpad keys - extract the character
@@ -242,6 +252,9 @@ class KeystrokeLogger:
         self.ctrl_pressed = False
         self.alt_pressed = False
         self.win_pressed = False
+        
+        # Selection state - tracks if text is currently selected
+        self.selection_active = False
         
         # Cache last clipboard content hash to avoid duplicate paste detection
         self.last_paste_hash = None
@@ -400,9 +413,19 @@ class KeystrokeLogger:
                     char = f'[ALT+{char.upper()}]'
                 elif self.win_pressed:
                     char = f'[WIN+{char.upper()}]'
-            elif char and char.startswith('[') and not any(x in char for x in ['CTRL+', 'ALT+', 'WIN+']):
+            elif char and char.startswith('[') and not any(x in char for x in ['CTRL+', 'ALT+', 'WIN+', 'SHIFT+']):
                 # Handle special keys with modifiers
-                if self.ctrl_pressed:
+                # Check for Ctrl+Shift combinations FIRST (before Ctrl-only)
+                if self.ctrl_pressed and self.shift_pressed:
+                    if char in ['[LEFT]', '[RIGHT]', '[UP]', '[DOWN]', '[HOME]', '[END]']:
+                        # Ctrl+Shift+Arrow = select by word
+                        char = f'[CTRL+SHIFT+{char[1:-1]}]'
+                        self.selection_active = True
+                    elif char == '[BACKSPACE]':
+                        char = '[CTRL+SHIFT+BACKSPACE]'
+                    elif char == '[DELETE]':
+                        char = '[CTRL+SHIFT+DELETE]'
+                elif self.ctrl_pressed:
                     if char == '[BACKSPACE]':
                         char = '[CTRL+BACKSPACE]'
                     elif char == '[DELETE]':
@@ -413,10 +436,18 @@ class KeystrokeLogger:
                 elif self.shift_pressed:
                     if char in ['[LEFT]', '[RIGHT]', '[UP]', '[DOWN]', '[HOME]', '[END]']:
                         # Shift+Arrow/Home/End = selection
-                        if self.ctrl_pressed:
-                            char = f'[CTRL+SHIFT+{char[1:-1]}]'
-                        else:
-                            char = f'[SHIFT+{char[1:-1]}]'
+                        char = f'[SHIFT+{char[1:-1]}]'
+                        self.selection_active = True
+                
+                # Track selection-based deletion
+                if char in ['[BACKSPACE]', '[DELETE]'] and self.selection_active:
+                    char = '[SEL+DELETE]'  # Mark as selection deletion
+                    self.selection_active = False
+                elif char not in ['[SHIFT+LEFT]', '[SHIFT+RIGHT]', '[SHIFT+UP]', '[SHIFT+DOWN]', 
+                                   '[SHIFT+HOME]', '[SHIFT+END]', '[CTRL+SHIFT+LEFT]', '[CTRL+SHIFT+RIGHT]',
+                                   '[CTRL+SHIFT+UP]', '[CTRL+SHIFT+DOWN]', '[CTRL+SHIFT+HOME]', '[CTRL+SHIFT+END]']:
+                    # Any non-selection key clears the selection state
+                    self.selection_active = False
             
             if char is None:
                 return

@@ -207,6 +207,20 @@ function KeystrokeReplay() {
               ) {
                 newText = newText.slice(0, -1);
               }
+            } else if (key === "[SEL+DELETE]") {
+              // Selection was deleted - delete back to word boundary
+              let deleted = 0;
+              while (newText.length > 0 && deleted < 20) {
+                const char = newText[newText.length - 1];
+                newText = newText.slice(0, -1);
+                deleted++;
+                if (char === " " || char === "\n") break;
+              }
+            } else if (
+              key.startsWith("[SHIFT+") ||
+              key.startsWith("[CTRL+SHIFT+")
+            ) {
+              // Selection operations - don't change text
             } else if (key === "[ENTER]") {
               newText += "\n";
             } else if (key === "[TAB]") {
@@ -648,6 +662,20 @@ function KeystrokeReplay() {
           while (text.length > 0 && text[text.length - 1] !== " ") {
             text = text.slice(0, -1);
           }
+        } else if (key === "[SEL+DELETE]") {
+          // Selection was deleted - delete back to word boundary
+          let deleted = 0;
+          while (text.length > 0 && deleted < 20) {
+            const char = text[text.length - 1];
+            text = text.slice(0, -1);
+            deleted++;
+            if (char === " " || char === "\n") break;
+          }
+        } else if (
+          key.startsWith("[SHIFT+") ||
+          key.startsWith("[CTRL+SHIFT+")
+        ) {
+          // Selection operations - don't change text
         } else if (key === "[ENTER]") {
           text += "\n";
         } else if (key === "[TAB]") {
