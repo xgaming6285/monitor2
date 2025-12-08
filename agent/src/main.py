@@ -5,6 +5,7 @@ import sys
 import signal
 import time
 import argparse
+import ctypes
 from typing import List
 
 from .config import DEBUG_MODE, SERVER_URL
@@ -16,6 +17,45 @@ from .monitors import (
     FileWatcher
 )
 from .collectors import EventQueue, EventSender
+
+
+# Mutex for single instance
+AGENT_MUTEX_NAME = "Global\\MonitorAgentMutex"
+_agent_mutex = None
+
+
+def acquire_single_instance():
+    """Ensure only one instance of the agent runs"""
+    global _agent_mutex
+    
+    try:
+        kernel32 = ctypes.windll.kernel32
+        _agent_mutex = kernel32.CreateMutexW(None, True, AGENT_MUTEX_NAME)
+        last_error = kernel32.GetLastError()
+        
+        # ERROR_ALREADY_EXISTS = 183
+        if last_error == 183:
+            print("Another agent instance is already running. Exiting.")
+            kernel32.CloseHandle(_agent_mutex)
+            _agent_mutex = None
+            return False
+        
+        return True
+    except Exception as e:
+        print(f"Mutex error: {e}")
+        return True  # Continue anyway if mutex fails
+
+
+def release_single_instance():
+    """Release the single instance mutex"""
+    global _agent_mutex
+    if _agent_mutex:
+        try:
+            ctypes.windll.kernel32.ReleaseMutex(_agent_mutex)
+            ctypes.windll.kernel32.CloseHandle(_agent_mutex)
+        except:
+            pass
+        _agent_mutex = None
 
 
 class MonitoringAgent:
@@ -178,14 +218,21 @@ def main():
     
     args = parser.parse_args()
     
-    # Set debug mode
-    if args.debug:
-        import src.config
-        src.config.DEBUG_MODE = True
+    # Ensure single instance
+    if not acquire_single_instance():
+        sys.exit(1)
     
-    # Create and run agent
-    agent = MonitoringAgent(server_url=args.server)
-    agent.run_forever()
+    try:
+        # Set debug mode
+        if args.debug:
+            import src.config
+            src.config.DEBUG_MODE = True
+        
+        # Create and run agent
+        agent = MonitoringAgent(server_url=args.server)
+        agent.run_forever()
+    finally:
+        release_single_instance()
 
 
 if __name__ == '__main__':

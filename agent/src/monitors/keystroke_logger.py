@@ -130,12 +130,6 @@ class KeystrokeLogger:
         self.shift_pressed = False
         self.ctrl_pressed = False
         self.alt_pressed = False
-        
-        # Deduplication: prevent double-capture from multiple keyboard layouts
-        # Stores (vk_code, timestamp) of last processed key
-        self.last_key_vk = None
-        self.last_key_time = 0
-        self.DEDUP_WINDOW_MS = 50  # Ignore same virtual key within 50ms
     
     def set_live_callback(self, callback):
         """Set or update the live keystroke callback"""
@@ -159,25 +153,6 @@ class KeystrokeLogger:
             elif key in (Key.alt_l, Key.alt_r):
                 self.alt_pressed = True
                 return
-            
-            # Get virtual key code for deduplication
-            # This is the same regardless of keyboard layout
-            vk = None
-            if hasattr(key, 'vk') and key.vk is not None:
-                vk = key.vk
-            elif hasattr(key, 'value') and hasattr(key.value, 'vk'):
-                vk = key.value.vk
-            
-            # Deduplication check: ignore if same virtual key within dedup window
-            # This prevents double-capture when multiple keyboard layouts are active
-            current_time = time.time() * 1000  # Convert to milliseconds
-            if vk is not None:
-                if vk == self.last_key_vk and (current_time - self.last_key_time) < self.DEDUP_WINDOW_MS:
-                    if DEBUG_MODE:
-                        print(f"Dedup: skipping duplicate vk={vk}")
-                    return
-                self.last_key_vk = vk
-                self.last_key_time = current_time
             
             # Get the character/key representation
             if hasattr(key, 'char') and key.char:

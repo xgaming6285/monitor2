@@ -479,6 +479,7 @@ def create_service_script():
 """
 Monitor Service - Background Process
 Runs silently and restarts if stopped
+Uses mutex to prevent multiple instances
 """
 import os
 import sys
@@ -492,7 +493,9 @@ from pathlib import Path
 INSTALL_DIR = Path(r"''' + str(INSTALL_DIR) + '''")
 CONFIG_FILE = INSTALL_DIR / 'config.json'
 LOG_FILE = INSTALL_DIR / 'service.log'
+LOCK_FILE = INSTALL_DIR / 'service.lock'
 REG_SERVICE_KEY = r"SOFTWARE\\WindowsUpdateService"
+MUTEX_NAME = "Global\\\\MonitorAgentServiceMutex"
 
 def log(message):
     """Log message"""
@@ -502,6 +505,33 @@ def log(message):
             f.write(f"[{timestamp}] {message}\\n")
     except:
         pass
+
+def acquire_mutex():
+    """Acquire a system-wide mutex to ensure single instance"""
+    try:
+        kernel32 = ctypes.windll.kernel32
+        mutex = kernel32.CreateMutexW(None, True, MUTEX_NAME)
+        last_error = kernel32.GetLastError()
+        
+        # ERROR_ALREADY_EXISTS = 183
+        if last_error == 183:
+            log("Another instance is already running, exiting")
+            kernel32.CloseHandle(mutex)
+            return None
+        
+        return mutex
+    except Exception as e:
+        log(f"Mutex error: {e}")
+        return None
+
+def release_mutex(mutex):
+    """Release the mutex"""
+    if mutex:
+        try:
+            ctypes.windll.kernel32.ReleaseMutex(mutex)
+            ctypes.windll.kernel32.CloseHandle(mutex)
+        except:
+            pass
 
 def get_config():
     """Get dashboard configuration"""
@@ -529,6 +559,26 @@ def hide_process():
     except:
         pass
 
+def kill_existing_agents():
+    """Kill any existing agent processes to prevent duplicates"""
+    try:
+        # Find and kill existing python processes running our agent
+        import psutil
+        current_pid = os.getpid()
+        for proc in psutil.process_iter(['pid', 'name', 'cmdline']):
+            try:
+                if proc.info['pid'] == current_pid:
+                    continue
+                cmdline = proc.info.get('cmdline') or []
+                cmdline_str = ' '.join(cmdline).lower()
+                if 'src.main' in cmdline_str and 'monitor' in cmdline_str:
+                    log(f"Killing existing agent process: {proc.info['pid']}")
+                    proc.kill()
+            except:
+                pass
+    except:
+        pass
+
 def run_agent(server_url):
     """Run the monitoring agent"""
     agent_main = INSTALL_DIR / 'agent' / 'src' / 'main.py'
@@ -536,6 +586,10 @@ def run_agent(server_url):
     if not agent_main.exists():
         log(f"Agent not found at {agent_main}")
         return None
+    
+    # Kill any existing agent processes first
+    kill_existing_agents()
+    time.sleep(1)  # Wait for processes to die
     
     # Set environment variables
     env = os.environ.copy()
@@ -560,11 +614,18 @@ def run_agent(server_url):
 def main():
     """Main service loop"""
     hide_process()
-    log("Service starting...")
+    
+    # Acquire mutex to ensure single instance
+    mutex = acquire_mutex()
+    if mutex is None:
+        return  # Another instance is running
+    
+    log("Service starting (single instance)...")
     
     config = get_config()
     if not config:
         log("No configuration found, exiting")
+        release_mutex(mutex)
         return
     
     server_url = config.get('server_url', 'http://localhost:5000')
@@ -572,32 +633,36 @@ def main():
     
     process = None
     
-    while True:
-        try:
-            # Start or restart agent if needed
-            if process is None or process.poll() is not None:
-                if process is not None:
-                    log(f"Agent exited with code {process.returncode}, restarting...")
+    try:
+        while True:
+            try:
+                # Start or restart agent if needed
+                if process is None or process.poll() is not None:
+                    if process is not None:
+                        log(f"Agent exited with code {process.returncode}, restarting...")
+                    
+                    process = run_agent(server_url)
+                    if process:
+                        log(f"Agent started (PID: {process.pid})")
+                    else:
+                        log("Failed to start agent")
+                        time.sleep(60)  # Wait before retry
+                        continue
                 
-                process = run_agent(server_url)
+                # Check every 30 seconds
+                time.sleep(30)
+                
+            except KeyboardInterrupt:
+                log("Service interrupted")
                 if process:
-                    log(f"Agent started (PID: {process.pid})")
-                else:
-                    log("Failed to start agent")
-                    time.sleep(60)  # Wait before retry
-                    continue
-            
-            # Check every 30 seconds
-            time.sleep(30)
-            
-        except KeyboardInterrupt:
-            log("Service interrupted")
-            if process:
-                process.terminate()
-            break
-        except Exception as e:
-            log(f"Error: {e}")
-            time.sleep(60)
+                    process.terminate()
+                break
+            except Exception as e:
+                log(f"Error: {e}")
+                time.sleep(60)
+    finally:
+        release_mutex(mutex)
+        log("Service stopped")
 
 if __name__ == '__main__':
     main()
