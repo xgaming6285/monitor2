@@ -132,7 +132,7 @@ class ClipboardMonitor:
                             display_content = content[:500] + '...[truncated]'
                         
                         self.event_callback({
-                            'timestamp': datetime.utcnow().isoformat(),
+                            'timestamp': datetime.now().isoformat(),
                             'event_type': 'clipboard_copy',
                             'category': 'clipboard',
                             'data': {

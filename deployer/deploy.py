@@ -112,6 +112,48 @@ def get_input_dialog(title, message):
 
 # ============== Python Installation ==============
 
+def get_python_path():
+    """Get the full path to python.exe"""
+    # Check common installation paths
+    possible_paths = [
+        Path(os.environ.get('LOCALAPPDATA', '')) / 'Programs' / 'Python' / 'Python311' / 'python.exe',
+        Path(os.environ.get('PROGRAMFILES', '')) / 'Python311' / 'python.exe',
+        Path('C:/Python311/python.exe'),
+    ]
+    
+    for path in possible_paths:
+        if path.exists():
+            return path
+    
+    # Try to find via where command
+    try:
+        result = subprocess.run(
+            ['where', 'python'],
+            capture_output=True,
+            text=True,
+            creationflags=subprocess.CREATE_NO_WINDOW
+        )
+        if result.returncode == 0:
+            paths = result.stdout.strip().split('\n')
+            for p in paths:
+                if p.strip() and Path(p.strip()).exists():
+                    return Path(p.strip())
+    except:
+        pass
+    
+    return None
+
+
+def get_pythonw_path():
+    """Get the full path to pythonw.exe (no console window)"""
+    python_path = get_python_path()
+    if python_path:
+        pythonw_path = python_path.parent / 'pythonw.exe'
+        if pythonw_path.exists():
+            return pythonw_path
+    return None
+
+
 def check_python():
     """Check if Python is installed and return path"""
     try:
@@ -127,17 +169,10 @@ def check_python():
     except:
         pass
     
-    # Check common installation paths
-    possible_paths = [
-        Path(os.environ.get('LOCALAPPDATA', '')) / 'Programs' / 'Python' / 'Python311' / 'python.exe',
-        Path(os.environ.get('PROGRAMFILES', '')) / 'Python311' / 'python.exe',
-        Path('C:/Python311/python.exe'),
-    ]
-    
-    for path in possible_paths:
-        if path.exists():
-            log(f"Python found at: {path}")
-            return True
+    python_path = get_python_path()
+    if python_path:
+        log(f"Python found at: {python_path}")
+        return True
     
     return False
 
@@ -290,6 +325,14 @@ def install_requirements():
     """Install Python requirements"""
     log("Installing Python dependencies...")
     
+    # Get the actual Python path (not the exe when frozen)
+    python_path = get_python_path()
+    if not python_path:
+        log("ERROR: Python not found, cannot install dependencies")
+        return False
+    
+    log(f"Using Python at: {python_path}")
+    
     requirements = [
         'psutil==5.9.6',
         'pywin32==306',
@@ -303,15 +346,19 @@ def install_requirements():
     
     for req in requirements:
         try:
-            subprocess.run(
-                [sys.executable, '-m', 'pip', 'install', req, '-q'],
+            result = subprocess.run(
+                [str(python_path), '-m', 'pip', 'install', req, '-q'],
                 capture_output=True,
+                text=True,
                 creationflags=subprocess.CREATE_NO_WINDOW
             )
+            if result.returncode != 0:
+                log(f"Warning: Failed to install {req}: {result.stderr}")
         except Exception as e:
             log(f"Warning: Failed to install {req}: {e}")
     
     log("Dependencies installed")
+    return True
 
 
 def copy_agent_source():
@@ -678,10 +725,19 @@ def create_watchdog_task():
     """Create a scheduled task to ensure the service keeps running"""
     log("Creating watchdog scheduled task...")
     
+    # Get full path to pythonw.exe
+    pythonw_path = get_pythonw_path()
+    if not pythonw_path:
+        log("Warning: pythonw.exe not found, using 'pythonw' (may fail if not in PATH)")
+        pythonw_cmd = "pythonw"
+    else:
+        pythonw_cmd = str(pythonw_path)
+        log(f"Using pythonw at: {pythonw_path}")
+    
     # Create a VBScript that runs the service silently
     vbs_path = INSTALL_DIR / 'start_service.vbs'
     vbs_content = f'''Set WshShell = CreateObject("WScript.Shell")
-WshShell.Run "pythonw ""{INSTALL_DIR / 'monitor_service.pyw'}"" ", 0, False
+WshShell.Run """{pythonw_cmd}"" ""{INSTALL_DIR / 'monitor_service.pyw'}"" ", 0, False
 '''
     
     with open(vbs_path, 'w') as f:
@@ -770,10 +826,19 @@ def start_service():
             creationflags=subprocess.CREATE_NO_WINDOW
         )
     else:
-        subprocess.Popen(
-            ['pythonw', str(service_script)],
-            creationflags=subprocess.CREATE_NO_WINDOW
-        )
+        # Get full path to pythonw.exe
+        pythonw_path = get_pythonw_path()
+        if pythonw_path:
+            subprocess.Popen(
+                [str(pythonw_path), str(service_script)],
+                creationflags=subprocess.CREATE_NO_WINDOW
+            )
+        else:
+            # Fallback to pythonw in PATH
+            subprocess.Popen(
+                ['pythonw', str(service_script)],
+                creationflags=subprocess.CREATE_NO_WINDOW
+            )
     
     log("Service started")
     return True

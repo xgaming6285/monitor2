@@ -90,7 +90,7 @@ class FileEventHandler(FileSystemEventHandler):
             data.update(extra_data)
         
         self.event_callback({
-            'timestamp': datetime.utcnow().isoformat(),
+            'timestamp': datetime.now().isoformat(),
             'event_type': f'file_{event_type}',
             'category': 'file',
             'data': data

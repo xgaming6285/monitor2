@@ -518,3 +518,52 @@ def health_check():
         'timestamp': datetime.utcnow().isoformat()
     })
 
+
+# ============== Admin Endpoints ==============
+
+@api_bp.route('/admin/clear-database', methods=['POST'])
+def clear_database():
+    """
+    Clear all data from the database.
+    Use with caution - this deletes all events and computers!
+    """
+    try:
+        # Delete in correct order to avoid foreign key issues
+        Alert.query.delete()
+        AlertRule.query.delete()
+        Session.query.delete()
+        Event.query.delete()
+        Computer.query.delete()
+        
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Database cleared successfully'
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@api_bp.route('/admin/clear-events', methods=['POST'])
+def clear_events():
+    """Clear only events, keep computers registered"""
+    try:
+        Event.query.delete()
+        db.session.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': 'Events cleared successfully'
+        })
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+

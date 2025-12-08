@@ -85,7 +85,7 @@ class ProcessMonitor:
                         # Skip if process is older than 5 seconds (was already running)
                         if time.time() - info['create_time'] < 5:
                             self.event_callback({
-                                'timestamp': datetime.utcnow().isoformat(),
+                                'timestamp': datetime.now().isoformat(),
                                 'event_type': 'process_start',
                                 'category': 'application',
                                 'data': {
@@ -111,7 +111,7 @@ class ProcessMonitor:
                 duration = time.time() - info['create_time']
                 
                 self.event_callback({
-                    'timestamp': datetime.utcnow().isoformat(),
+                    'timestamp': datetime.now().isoformat(),
                     'event_type': 'process_end',
                     'category': 'application',
                     'data': {

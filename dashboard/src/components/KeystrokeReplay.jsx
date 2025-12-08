@@ -1148,7 +1148,14 @@ function KeystrokeReplay() {
                           <Icon className="w-4 h-4 text-gray-400" />
                           <span className="text-xs text-gray-500">
                             {event.timestamp &&
-                              format(new Date(event.timestamp), "HH:mm:ss")}
+                              format(
+                                new Date(
+                                  event.timestamp.endsWith("Z")
+                                    ? event.timestamp
+                                    : event.timestamp + "Z"
+                                ),
+                                "HH:mm:ss"
+                              )}
                           </span>
                           {i === 0 && (
                             <span className="text-xs text-green-400 font-medium">
@@ -1204,7 +1211,14 @@ function KeystrokeReplay() {
                         <Icon className="w-4 h-4 text-gray-400" />
                         <span className="text-xs text-gray-500">
                           {event.timestamp &&
-                            format(new Date(event.timestamp), "HH:mm:ss")}
+                            format(
+                              new Date(
+                                event.timestamp.endsWith("Z")
+                                  ? event.timestamp
+                                  : event.timestamp + "Z"
+                              ),
+                              "HH:mm:ss"
+                            )}
                         </span>
                       </div>
                       <p className="text-sm text-gray-300 truncate font-mono">

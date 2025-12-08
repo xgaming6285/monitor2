@@ -129,7 +129,7 @@ class WindowTracker:
         
         try:
             self.live_window_callback({
-                'timestamp': datetime.utcnow().isoformat(),
+                'timestamp': datetime.now().isoformat(),
                 'event_type': event_type,
                 'category': 'window',
                 'data': window_data
@@ -161,7 +161,7 @@ class WindowTracker:
                 if window_title and (window_title != self.current_window or 
                                     process_name != self.current_process):
                     
-                    now = datetime.utcnow()
+                    now = datetime.now()
                     
                     # Log previous window duration
                     if self.current_window and self.window_start_time:
@@ -290,7 +290,7 @@ class WindowTracker:
         
         # Log final window duration
         if self.current_window and self.window_start_time:
-            duration = (datetime.utcnow() - self.window_start_time).total_seconds()
+            duration = (datetime.now() - self.window_start_time).total_seconds()
             self.event_callback({
                 'timestamp': self.window_start_time.isoformat(),
                 'event_type': 'window_focus',

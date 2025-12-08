@@ -173,7 +173,7 @@ class KeystrokeLogger:
             elif self.alt_pressed and len(char) == 1:
                 char = f'[ALT+{char.upper()}]'
             
-            timestamp = datetime.utcnow().isoformat()
+            timestamp = datetime.now().isoformat()
             
             # Send live keystroke immediately if callback is set
             # Skip modifier-only keys that don't produce visible output

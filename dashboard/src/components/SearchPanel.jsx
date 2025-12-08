@@ -1,20 +1,29 @@
-import React, { useState, useCallback } from 'react';
-import { 
-  Search, Filter, Calendar, Monitor, Keyboard, 
-  Clipboard, FolderOpen, Cpu, Globe, X, Download
-} from 'lucide-react';
-import { format } from 'date-fns';
+import React, { useState, useCallback } from "react";
+import {
+  Search,
+  Filter,
+  Calendar,
+  Monitor,
+  Keyboard,
+  Clipboard,
+  FolderOpen,
+  Cpu,
+  Globe,
+  X,
+  Download,
+} from "lucide-react";
+import { format } from "date-fns";
 
 function SearchPanel() {
-  const [query, setQuery] = useState('');
+  const [query, setQuery] = useState("");
   const [results, setResults] = useState([]);
   const [loading, setLoading] = useState(false);
   const [filters, setFilters] = useState({
-    computer_id: '',
-    event_type: '',
-    category: '',
-    start: '',
-    end: '',
+    computer_id: "",
+    event_type: "",
+    category: "",
+    start: "",
+    end: "",
   });
   const [totalResults, setTotalResults] = useState(0);
 
@@ -22,32 +31,35 @@ function SearchPanel() {
     setLoading(true);
     try {
       const params = new URLSearchParams();
-      if (filters.computer_id) params.append('computer_id', filters.computer_id);
-      if (filters.event_type) params.append('event_type', filters.event_type);
-      if (filters.category) params.append('category', filters.category);
-      if (filters.start) params.append('start', filters.start);
-      if (filters.end) params.append('end', filters.end);
-      params.append('limit', '100');
+      if (filters.computer_id)
+        params.append("computer_id", filters.computer_id);
+      if (filters.event_type) params.append("event_type", filters.event_type);
+      if (filters.category) params.append("category", filters.category);
+      if (filters.start) params.append("start", filters.start);
+      if (filters.end) params.append("end", filters.end);
+      params.append("limit", "100");
 
       const response = await fetch(`/api/events?${params.toString()}`);
       const data = await response.json();
-      
+
       // Client-side search in results if query provided
       let filteredResults = data.events || [];
       if (query) {
         const lowerQuery = query.toLowerCase();
-        filteredResults = filteredResults.filter(event => {
+        filteredResults = filteredResults.filter((event) => {
           const dataStr = JSON.stringify(event.data || {}).toLowerCase();
-          return dataStr.includes(lowerQuery) || 
-                 event.event_type.includes(lowerQuery) ||
-                 (event.computer_name || '').toLowerCase().includes(lowerQuery);
+          return (
+            dataStr.includes(lowerQuery) ||
+            event.event_type.includes(lowerQuery) ||
+            (event.computer_name || "").toLowerCase().includes(lowerQuery)
+          );
         });
       }
-      
+
       setResults(filteredResults);
       setTotalResults(data.total);
     } catch (error) {
-      console.error('Search failed:', error);
+      console.error("Search failed:", error);
     } finally {
       setLoading(false);
     }
@@ -60,35 +72,35 @@ function SearchPanel() {
 
   const clearFilters = () => {
     setFilters({
-      computer_id: '',
-      event_type: '',
-      category: '',
-      start: '',
-      end: '',
+      computer_id: "",
+      event_type: "",
+      category: "",
+      start: "",
+      end: "",
     });
-    setQuery('');
+    setQuery("");
     setResults([]);
   };
 
   const eventTypes = [
-    { value: '', label: 'All Types' },
-    { value: 'keystroke', label: 'Keystrokes' },
-    { value: 'window_focus', label: 'Window Focus' },
-    { value: 'clipboard_copy', label: 'Clipboard' },
-    { value: 'file_created', label: 'File Created' },
-    { value: 'file_modified', label: 'File Modified' },
-    { value: 'file_deleted', label: 'File Deleted' },
-    { value: 'process_start', label: 'Process Start' },
-    { value: 'process_end', label: 'Process End' },
+    { value: "", label: "All Types" },
+    { value: "keystroke", label: "Keystrokes" },
+    { value: "window_focus", label: "Window Focus" },
+    { value: "clipboard_copy", label: "Clipboard" },
+    { value: "file_created", label: "File Created" },
+    { value: "file_modified", label: "File Modified" },
+    { value: "file_deleted", label: "File Deleted" },
+    { value: "process_start", label: "Process Start" },
+    { value: "process_end", label: "Process End" },
   ];
 
   const categories = [
-    { value: '', label: 'All Categories' },
-    { value: 'input', label: 'Input' },
-    { value: 'application', label: 'Application' },
-    { value: 'clipboard', label: 'Clipboard' },
-    { value: 'file', label: 'File' },
-    { value: 'browser', label: 'Browser' },
+    { value: "", label: "All Categories" },
+    { value: "input", label: "Input" },
+    { value: "application", label: "Application" },
+    { value: "clipboard", label: "Clipboard" },
+    { value: "file", label: "File" },
+    { value: "browser", label: "Browser" },
   ];
 
   return (
@@ -96,7 +108,7 @@ function SearchPanel() {
       {/* Search Header */}
       <div className="p-6 border-b border-[#30363d] bg-[#161b22]/50">
         <h1 className="font-display text-2xl font-bold mb-4">Search Events</h1>
-        
+
         <form onSubmit={handleSubmit}>
           {/* Main Search */}
           <div className="relative mb-4">
@@ -114,28 +126,38 @@ function SearchPanel() {
           <div className="flex flex-wrap gap-3">
             <select
               value={filters.event_type}
-              onChange={(e) => setFilters(f => ({ ...f, event_type: e.target.value }))}
+              onChange={(e) =>
+                setFilters((f) => ({ ...f, event_type: e.target.value }))
+              }
               className="bg-[#21262d] border border-[#30363d] rounded-lg px-3 py-2 text-sm text-gray-300 focus:outline-none focus:border-cyan-500"
             >
-              {eventTypes.map(opt => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              {eventTypes.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
               ))}
             </select>
 
             <select
               value={filters.category}
-              onChange={(e) => setFilters(f => ({ ...f, category: e.target.value }))}
+              onChange={(e) =>
+                setFilters((f) => ({ ...f, category: e.target.value }))
+              }
               className="bg-[#21262d] border border-[#30363d] rounded-lg px-3 py-2 text-sm text-gray-300 focus:outline-none focus:border-cyan-500"
             >
-              {categories.map(opt => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              {categories.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
               ))}
             </select>
 
             <input
               type="datetime-local"
               value={filters.start}
-              onChange={(e) => setFilters(f => ({ ...f, start: e.target.value }))}
+              onChange={(e) =>
+                setFilters((f) => ({ ...f, start: e.target.value }))
+              }
               className="bg-[#21262d] border border-[#30363d] rounded-lg px-3 py-2 text-sm text-gray-300 focus:outline-none focus:border-cyan-500"
               placeholder="Start date"
             />
@@ -143,7 +165,9 @@ function SearchPanel() {
             <input
               type="datetime-local"
               value={filters.end}
-              onChange={(e) => setFilters(f => ({ ...f, end: e.target.value }))}
+              onChange={(e) =>
+                setFilters((f) => ({ ...f, end: e.target.value }))
+              }
               className="bg-[#21262d] border border-[#30363d] rounded-lg px-3 py-2 text-sm text-gray-300 focus:outline-none focus:border-cyan-500"
               placeholder="End date"
             />
@@ -153,7 +177,7 @@ function SearchPanel() {
               disabled={loading}
               className="px-4 py-2 bg-cyan-600 hover:bg-cyan-500 rounded-lg text-white font-medium transition-colors disabled:opacity-50"
             >
-              {loading ? 'Searching...' : 'Search'}
+              {loading ? "Searching..." : "Search"}
             </button>
 
             <button
@@ -197,16 +221,28 @@ function SearchPanel() {
                       </span>
                     </div>
                     <span className="text-xs text-gray-500">
-                      {event.timestamp && format(new Date(event.timestamp), 'MMM d, yyyy HH:mm:ss')}
+                      {event.timestamp &&
+                        format(
+                          new Date(
+                            event.timestamp.endsWith("Z")
+                              ? event.timestamp
+                              : event.timestamp + "Z"
+                          ),
+                          "MMM d, yyyy HH:mm:ss"
+                        )}
                     </span>
                   </div>
-                  
+
                   <div className="text-sm text-gray-300 font-mono bg-[#0d1117] rounded p-3 overflow-x-auto">
                     {/* For keystrokes, show reconstructed text prominently */}
-                    {event.event_type === 'keystroke' && event.data?.text && (
+                    {event.event_type === "keystroke" && event.data?.text && (
                       <div className="mb-3 pb-3 border-b border-[#30363d]">
-                        <span className="text-gray-500 text-xs block mb-1">Final text:</span>
-                        <span className="text-cyan-300 text-base">{event.data.text}</span>
+                        <span className="text-gray-500 text-xs block mb-1">
+                          Final text:
+                        </span>
+                        <span className="text-cyan-300 text-base">
+                          {event.data.text}
+                        </span>
                       </div>
                     )}
                     <pre className="whitespace-pre-wrap">
@@ -221,7 +257,9 @@ function SearchPanel() {
           <div className="flex flex-col items-center justify-center h-full text-gray-500">
             <Search className="w-16 h-16 mb-4 opacity-30" />
             <p className="text-lg">Search for events</p>
-            <p className="text-sm mt-1">Use the search bar and filters above to find specific events</p>
+            <p className="text-sm mt-1">
+              Use the search bar and filters above to find specific events
+            </p>
           </div>
         )}
       </div>
@@ -230,4 +268,3 @@ function SearchPanel() {
 }
 
 export default SearchPanel;
-

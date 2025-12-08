@@ -1,15 +1,23 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  Monitor, Activity, Keyboard, Clipboard, FolderOpen, Cpu,
-  TrendingUp, Users, Clock, AlertTriangle
-} from 'lucide-react';
+import React, { useState, useEffect } from "react";
+import {
+  Monitor,
+  Activity,
+  Keyboard,
+  Clipboard,
+  FolderOpen,
+  Cpu,
+  TrendingUp,
+  Users,
+  Clock,
+  AlertTriangle,
+} from "lucide-react";
 
-function StatCard({ title, value, icon: Icon, trend, color = 'cyan' }) {
+function StatCard({ title, value, icon: Icon, trend, color = "cyan" }) {
   const colors = {
-    cyan: 'from-cyan-500 to-teal-500',
-    green: 'from-green-500 to-emerald-500',
-    orange: 'from-orange-500 to-amber-500',
-    purple: 'from-purple-500 to-pink-500',
+    cyan: "from-cyan-500 to-teal-500",
+    green: "from-green-500 to-emerald-500",
+    orange: "from-orange-500 to-amber-500",
+    purple: "from-purple-500 to-pink-500",
   };
 
   return (
@@ -25,7 +33,9 @@ function StatCard({ title, value, icon: Icon, trend, color = 'cyan' }) {
             </div>
           )}
         </div>
-        <div className={`w-12 h-12 rounded-xl bg-gradient-to-br ${colors[color]} flex items-center justify-center`}>
+        <div
+          className={`w-12 h-12 rounded-xl bg-gradient-to-br ${colors[color]} flex items-center justify-center`}
+        >
           <Icon className="w-6 h-6 text-white" />
         </div>
       </div>
@@ -47,7 +57,7 @@ function RecentActivity({ events }) {
       <div className="p-2 max-h-[400px] overflow-y-auto">
         {recentEvents.length > 0 ? (
           recentEvents.map((event, index) => (
-            <div 
+            <div
               key={event.id || index}
               className="flex items-center gap-3 p-3 hover:bg-[#21262d]/50 rounded-lg"
             >
@@ -55,12 +65,17 @@ function RecentActivity({ events }) {
               <div className="flex-1 min-w-0">
                 <p className="text-sm truncate">
                   <span className="text-cyan-400">{event.computer_name}</span>
-                  {' - '}
+                  {" - "}
                   <span className="text-gray-400">{event.event_type}</span>
                 </p>
               </div>
               <span className="text-xs text-gray-500">
-                {event.timestamp && new Date(event.timestamp).toLocaleTimeString()}
+                {event.timestamp &&
+                  new Date(
+                    event.timestamp.endsWith("Z")
+                      ? event.timestamp
+                      : event.timestamp + "Z"
+                  ).toLocaleTimeString()}
               </span>
             </div>
           ))
@@ -76,7 +91,7 @@ function RecentActivity({ events }) {
 }
 
 function OnlineComputers({ computers }) {
-  const onlineComputers = computers.filter(c => c.is_online);
+  const onlineComputers = computers.filter((c) => c.is_online);
 
   return (
     <div className="bg-[#161b22] rounded-xl border border-[#30363d]">
@@ -89,7 +104,7 @@ function OnlineComputers({ computers }) {
       <div className="p-2 max-h-[400px] overflow-y-auto">
         {onlineComputers.length > 0 ? (
           onlineComputers.map((computer) => (
-            <div 
+            <div
               key={computer.id}
               className="flex items-center gap-3 p-3 hover:bg-[#21262d]/50 rounded-lg"
             >
@@ -125,16 +140,16 @@ function Dashboard({ computers, events }) {
 
   // Fetch stats
   useEffect(() => {
-    fetch('/api/stats')
-      .then(res => res.json())
-      .then(data => setStats(data))
+    fetch("/api/stats")
+      .then((res) => res.json())
+      .then((data) => setStats(data))
       .catch(console.error);
-    
+
     // Refresh stats every 30 seconds
     const interval = setInterval(() => {
-      fetch('/api/stats')
-        .then(res => res.json())
-        .then(data => setStats(data))
+      fetch("/api/stats")
+        .then((res) => res.json())
+        .then((data) => setStats(data))
         .catch(console.error);
     }, 30000);
 
@@ -146,7 +161,9 @@ function Dashboard({ computers, events }) {
       {/* Header */}
       <div className="mb-8">
         <h1 className="font-display text-3xl font-bold">Dashboard</h1>
-        <p className="text-gray-500 mt-1">Monitor all activity across your network</p>
+        <p className="text-gray-500 mt-1">
+          Monitor all activity across your network
+        </p>
       </div>
 
       {/* Stats Grid */}
@@ -187,14 +204,16 @@ function Dashboard({ computers, events }) {
       <div className="mt-6 bg-[#161b22] rounded-xl border border-[#30363d] p-5">
         <h3 className="font-semibold mb-4">Events by Category</h3>
         <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          {Object.entries(stats.events_by_category || {}).map(([category, count]) => (
-            <div key={category} className="bg-[#21262d] rounded-lg p-4">
-              <p className="text-gray-500 text-sm capitalize">{category}</p>
-              <p className="text-2xl font-bold font-display mt-1">
-                {count.toLocaleString()}
-              </p>
-            </div>
-          ))}
+          {Object.entries(stats.events_by_category || {}).map(
+            ([category, count]) => (
+              <div key={category} className="bg-[#21262d] rounded-lg p-4">
+                <p className="text-gray-500 text-sm capitalize">{category}</p>
+                <p className="text-2xl font-bold font-display mt-1">
+                  {count.toLocaleString()}
+                </p>
+              </div>
+            )
+          )}
         </div>
       </div>
     </div>
@@ -202,4 +221,3 @@ function Dashboard({ computers, events }) {
 }
 
 export default Dashboard;
-
