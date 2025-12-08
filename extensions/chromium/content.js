@@ -234,7 +234,14 @@
     true
   );
 
-  // Track keystrokes
+  // NOTE: Keystroke capture is disabled in the extension because the desktop agent
+  // already captures all keystrokes system-wide via pynput. Having both enabled
+  // causes duplicate characters in the live replay.
+  // The extension focuses on browser-specific events (navigation, clicks, forms, etc.)
+
+  // If you need keystroke capture ONLY from the extension (no desktop agent),
+  // uncomment the following:
+  /*
   document.addEventListener(
     "keydown",
     (e) => {
@@ -259,6 +266,7 @@
     },
     true
   );
+  */
 
   let focusStartTime = null;
   // Track focus
