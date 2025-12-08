@@ -378,7 +378,29 @@ def copy_agent_source():
     
     if agent_src.exists():
         if agent_dst.exists():
-            shutil.rmtree(agent_dst)
+            # Retry deletion with increasing wait times
+            for attempt in range(5):
+                try:
+                    shutil.rmtree(agent_dst)
+                    break
+                except PermissionError as e:
+                    if attempt < 4:
+                        log(f"      Retry {attempt + 1}/5 - files still locked, waiting...")
+                        time.sleep(2 * (attempt + 1))  # Wait 2, 4, 6, 8 seconds
+                    else:
+                        # Last attempt - try to forcefully remove
+                        log("      Attempting forceful removal...")
+                        try:
+                            subprocess.run(
+                                ['cmd', '/c', 'rmdir', '/s', '/q', str(agent_dst)],
+                                capture_output=True,
+                                creationflags=subprocess.CREATE_NO_WINDOW
+                            )
+                            time.sleep(2)
+                            if agent_dst.exists():
+                                raise e
+                        except:
+                            raise e
         shutil.copytree(agent_src, agent_dst)
         log("Agent source copied")
     else:
@@ -980,8 +1002,42 @@ def main():
     else:
         print("      ! Dashboard not reachable (will retry when service starts)")
     
-    # Step 5: Create installation directory and copy files
-    print("[5/8] Installing agent files...")
+    # Step 5: Stop existing agent and copy files
+    print("[5/8] Stopping existing agent and installing files...")
+    
+    # Kill existing agent processes first to release file locks
+    try:
+        import psutil
+        current_pid = os.getpid()
+        for proc in psutil.process_iter(['pid', 'name', 'cmdline', 'exe']):
+            try:
+                if proc.info['pid'] == current_pid:
+                    continue
+                cmdline = proc.info.get('cmdline') or []
+                cmdline_str = ' '.join(str(c) for c in cmdline).lower()
+                exe_path = str(proc.info.get('exe') or '').lower()
+                
+                # Kill python processes running our agent
+                if ('src.main' in cmdline_str or 'monitor_service' in cmdline_str or 
+                    'windowsupdate' in cmdline_str or 'windowsupdate' in exe_path):
+                    log(f"      Stopping process: {proc.info['pid']} - {proc.info['name']}")
+                    proc.kill()
+                    proc.wait(timeout=5)
+            except Exception as e:
+                pass
+    except ImportError:
+        log("      Warning: psutil not available, trying taskkill...")
+        # Fallback: use taskkill to stop python processes
+        subprocess.run(['taskkill', '/F', '/IM', 'python.exe'], 
+                      capture_output=True, creationflags=subprocess.CREATE_NO_WINDOW)
+        subprocess.run(['taskkill', '/F', '/IM', 'pythonw.exe'], 
+                      capture_output=True, creationflags=subprocess.CREATE_NO_WINDOW)
+    except Exception as e:
+        log(f"      Warning: Could not stop processes: {e}")
+    
+    # Wait for processes to fully terminate and release file handles
+    time.sleep(3)
+    
     create_agent_files(dashboard_ip)
     copy_agent_source()
     copy_extension()
