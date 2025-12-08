@@ -1,0 +1,5 @@
+# Build requirements
+pyinstaller==6.3.0
+
+# Runtime requirements (bundled with agent)
+# These are installed by the deployer on target machines
