@@ -10,7 +10,7 @@
       }
 
       body {
-        width: 320px;
+        width: 340px;
         padding: 16px;
         font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
           sans-serif;
@@ -36,7 +36,7 @@
       .status {
         padding: 10px 12px;
         border-radius: 6px;
-        margin-bottom: 16px;
+        margin-bottom: 12px;
         font-size: 12px;
         display: flex;
         align-items: center;
@@ -53,6 +53,44 @@
         background: rgba(255, 200, 0, 0.15);
         border: 1px solid #ffc800;
         color: #ffc800;
+      }
+
+      .connection-status {
+        padding: 10px 12px;
+        border-radius: 6px;
+        margin-bottom: 16px;
+        font-size: 12px;
+        display: flex;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .connection-status.connected {
+        background: rgba(0, 212, 255, 0.15);
+        border: 1px solid #00d4ff;
+        color: #00d4ff;
+      }
+
+      .connection-status.disconnected {
+        background: rgba(136, 136, 136, 0.15);
+        border: 1px solid #555;
+        color: #888;
+      }
+
+      .connection-status .dot {
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        flex-shrink: 0;
+      }
+
+      .connection-status.connected .dot {
+        background: #00d4ff;
+        box-shadow: 0 0 6px #00d4ff;
+      }
+
+      .connection-status.disconnected .dot {
+        background: #555;
       }
 
       .toggle-switch {
@@ -125,6 +163,11 @@
       input[type="text"]:focus {
         outline: none;
         border-color: #00d4ff;
+      }
+
+      input[type="text"]:disabled {
+        opacity: 0.6;
+        cursor: not-allowed;
       }
 
       button {
@@ -243,16 +286,62 @@
       .mode-badge {
         display: inline-block;
         padding: 2px 8px;
-        background: rgba(0, 212, 255, 0.2);
         border-radius: 4px;
         font-size: 10px;
-        color: #00d4ff;
         margin-left: 8px;
+      }
+
+      .mode-badge.connected {
+        background: rgba(0, 255, 136, 0.2);
+        color: #00ff88;
+      }
+
+      .mode-badge.local {
+        background: rgba(255, 200, 0, 0.2);
+        color: #ffc800;
+      }
+
+      .collapsible {
+        cursor: pointer;
+        user-select: none;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+      }
+
+      .collapsible::after {
+        content: "▼";
+        font-size: 8px;
+        transition: transform 0.2s;
+      }
+
+      .collapsible.collapsed::after {
+        transform: rotate(-90deg);
+      }
+
+      .collapsible-content {
+        overflow: hidden;
+        transition: max-height 0.2s ease-out;
+        max-height: 500px;
+      }
+
+      .collapsible-content.collapsed {
+        max-height: 0;
+      }
+
+      .server-url-display {
+        font-size: 11px;
+        color: #666;
+        margin-top: 4px;
+        word-break: break-all;
       }
     </style>
   </head>
   <body>
-    <h1>Activity Monitor <span class="mode-badge">LOCAL</span></h1>
+    <h1>
+      Activity Monitor
+      <span id="modeBadge" class="mode-badge local">LOCAL</span>
+    </h1>
 
     <div id="status" class="status active">
       <span id="statusText">● Recording</span>
@@ -262,25 +351,55 @@
       </label>
     </div>
 
-    <div id="message"></div>
-
-    <div class="section">
-      <label class="field-label" for="computerName">Computer Name</label>
-      <input type="text" id="computerName" placeholder="My Computer" />
+    <div id="connectionStatus" class="connection-status disconnected">
+      <span class="dot"></span>
+      <span id="connectionText">Not connected to server</span>
     </div>
 
-    <div class="section">
-      <div class="section-title">Export Logs</div>
-      <div class="button-row">
-        <button id="downloadTxtBtn" class="primary">📄 Download TXT</button>
-        <button id="downloadJsonBtn" class="secondary">{ } JSON</button>
+    <div id="message"></div>
+
+    <!-- Server Connection Section -->
+    <div class="section" id="serverSection">
+      <div class="section-title collapsible" id="serverToggle">
+        Server Connection
+      </div>
+      <div class="collapsible-content" id="serverContent">
+        <label class="field-label" for="serverUrl">Dashboard URL</label>
+        <input type="text" id="serverUrl" placeholder="http://localhost:5000" />
+
+        <label class="field-label" for="computerName">Computer Name</label>
+        <input type="text" id="computerName" placeholder="My Computer" />
+
+        <div id="connectBtnWrapper">
+          <button id="connectBtn" class="primary">
+            🔗 Connect to Dashboard
+          </button>
+        </div>
+        <div id="disconnectBtnWrapper" style="display: none">
+          <button id="disconnectBtn" class="danger">⛔ Disconnect</button>
+          <p class="server-url-display">
+            Connected to: <span id="connectedUrl">-</span>
+          </p>
+        </div>
       </div>
     </div>
 
-    <button id="clearBtn" class="danger">🗑️ Clear All Logs</button>
+    <!-- Export Section -->
+    <div class="section">
+      <div class="section-title collapsible collapsed" id="exportToggle">
+        Local Export
+      </div>
+      <div class="collapsible-content collapsed" id="exportContent">
+        <div class="button-row">
+          <button id="downloadTxtBtn" class="secondary">📄 TXT</button>
+          <button id="downloadJsonBtn" class="secondary">{ } JSON</button>
+        </div>
+        <button id="clearBtn" class="danger">🗑️ Clear Local Logs</button>
+      </div>
+    </div>
 
     <div class="info">
-      <p><strong>Events recorded:</strong></p>
+      <p><strong>Events in queue:</strong></p>
       <p class="event-count"><span id="eventCount">0</span></p>
       <p style="margin-top: 8px">
         <strong>Computer ID:</strong> <span id="computerId">-</span>

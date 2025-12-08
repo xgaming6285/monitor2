@@ -1,32 +1,223 @@
 /**
  * Background Service Worker
- * Manages event collection and local file storage
+ * Manages event collection and sends to dashboard server
  */
 
 // Configuration
 const CONFIG = {
   maxEvents: 10000, // Maximum events to keep in memory
-  autoSaveInterval: 300000, // Auto-save every 5 minutes (optional)
-  autoSaveEnabled: false, // Disabled by default
+  batchSize: 50, // Events per batch to send
+  batchInterval: 5000, // Send batch every 5 seconds
+  heartbeatInterval: 30000, // Heartbeat every 30 seconds
+  retryDelay: 5000, // Retry delay on failure
+  maxRetries: 3, // Max retries before giving up
 };
 
-// Event storage
+// State
 let eventQueue = [];
+let pendingEvents = []; // Events waiting to be sent
 let isMonitoring = true;
-let computerId =
-  "local-" + Math.random().toString(36).substring(2, 8).toUpperCase();
+let computerId = null;
+let apiKey = null;
+let serverUrl = "";
+let isConnected = false;
+let computerName =
+  "Browser-" + Math.random().toString(36).substring(2, 8).toUpperCase();
+
+// Intervals
+let batchSendInterval = null;
+let heartbeatInterval = null;
 
 // Initialize
 chrome.storage.local.get(
-  ["computerId", "isMonitoring", "eventQueue"],
+  [
+    "computerId",
+    "apiKey",
+    "serverUrl",
+    "computerName",
+    "isMonitoring",
+    "eventQueue",
+  ],
   (result) => {
     if (result.computerId) computerId = result.computerId;
+    if (result.apiKey) apiKey = result.apiKey;
+    if (result.serverUrl) serverUrl = result.serverUrl;
+    if (result.computerName) computerName = result.computerName;
     if (result.isMonitoring !== undefined) isMonitoring = result.isMonitoring;
     if (result.eventQueue && Array.isArray(result.eventQueue)) {
       eventQueue = result.eventQueue;
     }
+
+    // Auto-reconnect if we have credentials
+    if (serverUrl && apiKey) {
+      startServerConnection();
+    }
   }
 );
+
+// ============== Server Connection ==============
+
+async function registerWithServer(url, name) {
+  try {
+    const response = await fetch(`${url}/api/register`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        computer_name: name,
+        username: "Browser Extension",
+        os_version: navigator.userAgent,
+        agent_version: chrome.runtime.getManifest().version,
+      }),
+    });
+
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || "Registration failed");
+    }
+
+    const data = await response.json();
+
+    // Save credentials
+    computerId = data.computer_id;
+    apiKey = data.api_key;
+    serverUrl = url;
+    computerName = name;
+
+    await chrome.storage.local.set({
+      computerId,
+      apiKey,
+      serverUrl,
+      computerName,
+    });
+
+    // Start sending events
+    startServerConnection();
+
+    return { success: true, computerId, message: data.message };
+  } catch (error) {
+    console.error("Registration failed:", error);
+    return { success: false, error: error.message };
+  }
+}
+
+function startServerConnection() {
+  if (!serverUrl || !apiKey) return;
+
+  isConnected = true;
+
+  // Start batch sending
+  if (batchSendInterval) clearInterval(batchSendInterval);
+  batchSendInterval = setInterval(sendEventBatch, CONFIG.batchInterval);
+
+  // Start heartbeat
+  if (heartbeatInterval) clearInterval(heartbeatInterval);
+  heartbeatInterval = setInterval(sendHeartbeat, CONFIG.heartbeatInterval);
+
+  // Send any pending events immediately
+  sendEventBatch();
+
+  console.log("Server connection started");
+}
+
+function stopServerConnection() {
+  isConnected = false;
+
+  if (batchSendInterval) {
+    clearInterval(batchSendInterval);
+    batchSendInterval = null;
+  }
+
+  if (heartbeatInterval) {
+    clearInterval(heartbeatInterval);
+    heartbeatInterval = null;
+  }
+
+  console.log("Server connection stopped");
+}
+
+async function sendEventBatch() {
+  if (!isConnected || !apiKey || !serverUrl) return;
+  if (eventQueue.length === 0) return;
+
+  // Take a batch of events
+  const batch = eventQueue.splice(0, CONFIG.batchSize);
+
+  try {
+    const response = await fetch(`${serverUrl}/api/events`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-API-Key": apiKey,
+      },
+      body: JSON.stringify({ events: batch }),
+    });
+
+    if (!response.ok) {
+      // Put events back on failure
+      eventQueue.unshift(...batch);
+
+      if (response.status === 401) {
+        // API key invalid, stop connection
+        console.error("API key invalid, disconnecting");
+        stopServerConnection();
+        apiKey = null;
+        await chrome.storage.local.remove(["apiKey"]);
+      }
+      return;
+    }
+
+    const data = await response.json();
+    console.log(`Sent ${data.processed} events to server`);
+
+    // Save remaining events to storage
+    saveEventsToStorage();
+  } catch (error) {
+    // Network error - put events back
+    console.error("Failed to send events:", error);
+    eventQueue.unshift(...batch);
+  }
+}
+
+async function sendHeartbeat() {
+  if (!isConnected || !apiKey || !serverUrl) return;
+
+  try {
+    const response = await fetch(`${serverUrl}/api/heartbeat`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "X-API-Key": apiKey,
+      },
+      body: JSON.stringify({
+        agent_version: chrome.runtime.getManifest().version,
+      }),
+    });
+
+    if (!response.ok) {
+      if (response.status === 401) {
+        stopServerConnection();
+        apiKey = null;
+        await chrome.storage.local.remove(["apiKey"]);
+      }
+    }
+  } catch (error) {
+    console.error("Heartbeat failed:", error);
+  }
+}
+
+async function disconnectFromServer() {
+  stopServerConnection();
+
+  // Clear credentials but keep events locally
+  apiKey = null;
+  computerId = null;
+
+  await chrome.storage.local.remove(["apiKey", "computerId"]);
+
+  return { success: true };
+}
 
 // Tab tracking
 const tabStartTimes = new Map();
@@ -111,6 +302,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       eventCount: eventQueue.length,
       isMonitoring: isMonitoring,
       computerId: computerId,
+      computerName: computerName,
+      serverUrl: serverUrl,
+      isConnected: isConnected && !!apiKey,
     });
   } else if (message.type === "toggleMonitoring") {
     isMonitoring = message.enabled;
@@ -126,6 +320,19 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   } else if (message.type === "setComputerId") {
     computerId = message.computerId;
     chrome.storage.local.set({ computerId: computerId });
+    sendResponse({ success: true });
+  } else if (message.type === "connect") {
+    // Handle async registration
+    registerWithServer(message.serverUrl, message.computerName).then(
+      sendResponse
+    );
+    return true; // Keep channel open for async response
+  } else if (message.type === "disconnect") {
+    disconnectFromServer().then(sendResponse);
+    return true;
+  } else if (message.type === "setComputerName") {
+    computerName = message.computerName;
+    chrome.storage.local.set({ computerName: computerName });
     sendResponse({ success: true });
   }
   return true;
@@ -315,4 +522,4 @@ self.addEventListener("beforeunload", () => {
   saveEventsToStorage();
 });
 
-console.log("Monitor extension background service started (Local File Mode)");
+console.log("Monitor extension background service started");
